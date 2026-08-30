@@ -55,9 +55,26 @@ class DashboardProvider extends ChangeNotifier {
     return (keteranganDistribution[k] ?? 0) / records.length;
   }
 
-  /// % laporan berketerangan Hadir dari seluruh laporan — dipakai untuk
-  /// card ringkasan "Kehadiran" di dashboard.
-  double get kehadiranRatio => keteranganRatio(Keterangan.hadir);
+  /// % laporan yang santrinya HADIR secara fisik, dari seluruh laporan —
+  /// dipakai untuk card ringkasan "Kehadiran" di dashboard.
+  ///
+  /// PENTING (sinkron dengan app guru — lihat `records_provider.dart`
+  /// `totalHadir`): "hadir" DI SINI BUKAN cuma `Keterangan.hadir`, tapi
+  /// juga 3 keterangan "sanksi tanpa setoran" (`tidakSetoran`,
+  /// `tidakTahsin`, `tidakMurojaah`, lihat `Keterangan.isSanksiTanpaSetoran`
+  /// di enums.dart) — santri yang keterangannya itu SECARA FISIK hadir,
+  /// cuma nggak setor/tahsin/murojaah (males/ketiduran/dll), beda dari
+  /// Izin Sakit/Izin/Izin Lomba/Izin Pelatihan/Alpa yang memang nggak
+  /// hadir. Kalau di sini cuma dihitung `Keterangan.hadir` saja, angka
+  /// Kehadiran orang tua akan lebih RENDAH dari yang guru lihat di app
+  /// guru untuk santri yang sama — jadi harus dijaga tetap sama definisi.
+  double get kehadiranRatio {
+    if (records.isEmpty) return 0;
+    final hadirCount = records
+        .where((r) => r.keterangan == Keterangan.hadir || r.keterangan.isSanksiTanpaSetoran)
+        .length;
+    return hadirCount / records.length;
+  }
 
   /// Total baris tahfizh yang tercapai sepanjang riwayat laporan
   /// (agregat totalBaris semua laporan status Tahfizh/Tahsin+Tahfizh).

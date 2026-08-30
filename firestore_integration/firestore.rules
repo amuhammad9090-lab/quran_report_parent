@@ -1,0 +1,64 @@
+// firestore.rules — DRAF, belum di-deploy (belum ada project Firebase).
+//
+// PERUBAHAN DESAIN yang saya usulkan di titik ini (baca catatan lengkap
+// di README.md bagian "STEP 10 — kenapa geser ke Firebase Auth"):
+// alih-alih verifikasi password lewat `AuthHashService` + baca
+// `passwordHash` dari Firestore (masalah: supaya bisa dicek di client,
+// dokumennya harus bisa dibaca SEBELUM auth — itu berarti hash semua
+// akun jadi bisa dibaca siapa saja, termasuk yang bukan pemiliknya),
+// saya usulkan LOGIN SANTRI LEWAT FIREBASE AUTH (email/password, pakai
+// email sintetis `username@quranreport-parent.app`). Firebase yang
+// pegang password (di luar Firestore sama sekali), dan rules di bawah
+// cukup cek `request.auth.uid` — jauh lebih aman & rules-nya sederhana.
+//
+// Konsekuensi: `SantriAccount.passwordHash` TIDAK dipakai lagi kalau opsi
+// ini diambil — field itu diganti jadi cuma metadata (studentId,
+// isActive), passwordnya sendiri hidup di Firebase Auth. `id` dokumen
+// SantriAccount = UID Firebase Auth akun itu.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /schools/{schoolId} {
+
+      function myAccount() {
+        return get(/databases/$(database)/documents/schools/$(schoolId)/santriAccounts/$(request.auth.uid)).data;
+      }
+
+      function myStudent() {
+        return get(/databases/$(database)/documents/schools/$(schoolId)/students/$(myAccount().studentId)).data;
+      }
+
+      // Akun santri — dokumen HANYA bisa dibaca oleh dirinya sendiri
+      // (uid Firebase Auth = ID dokumen). TIDAK ADA write dari client
+      // sama sekali (create/update/deactivate akun HARUS lewat Cloud
+      // Function admin, bukan langsung dari ManageAccountsScreen client
+      // SDK — lihat catatan di README).
+      match /santriAccounts/{accountId} {
+        allow read: if request.auth != null && request.auth.uid == accountId;
+        allow write: if false;
+      }
+
+      // Data master santri — cuma bisa dibaca oleh SantriAccount yang
+      // studentId-nya cocok.
+      match /students/{studentId} {
+        allow read: if request.auth != null && myAccount().studentId == studentId;
+        allow write: if false; // portal orang tua tidak pernah menulis
+      }
+
+      // Laporan — SantriRecord tidak punya studentId (desain existing
+      // app guru, lihat audit STEP 1), jadi rule di sini cek kelas +
+      // halaqoh + namaAnak cocok dengan data Student milik si pembaca —
+      // bukan cuma filter di query client, tapi genuinely dicek di rules.
+      match /santriRecords/{recordId} {
+        allow read: if request.auth != null &&
+          myStudent().nama == resource.data.namaAnak &&
+          myStudent().kelas == resource.data.kelas &&
+          myStudent().halaqoh == resource.data.halaqoh;
+        allow write: if false;
+      }
+    }
+  }
+}

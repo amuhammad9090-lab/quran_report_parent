@@ -1,97 +1,125 @@
-# STEP 3 — Struktur Project (Quran Report — Portal Orang Tua)
+# Quran Report — Portal Orang Tua
 
-Scaffold ini hasil STEP 3. Belum ada UI final (itu STEP 4-8) — fokus
-STEP 3 adalah struktur, wiring, dan bagian yang memang sudah bisa
-langsung *reuse* dari app guru.
+Companion Flutter Web read-only untuk app guru **Quran Report**. Status:
+**STEP 1-9 selesai**, STEP 10 (integrasi backend) **UI-nya selesai**,
+tinggal implementasi Firestore-nya (lihat bagian paling bawah).
 
-## Yang di-*share* apa adanya (copy verbatim dari app guru, TIDAK diubah)
-- `lib/core/theme/app_colors.dart`
-- `lib/core/theme/app_theme.dart`
+## Yang di-*share* apa adanya dari app guru (TIDAK diubah, copy verbatim)
+- `lib/core/theme/app_colors.dart`, `app_theme.dart`
 - `lib/core/utils/text_utils.dart`
-- `lib/data/models/enums.dart`
-- `lib/data/models/santri_record.dart` (+ `TahfizhSegment`, `TilawahSegment`)
-- `lib/data/models/student.dart`
-- `lib/data/services/quran_engine_service.dart`
-- `lib/data/services/auth_hash_service.dart`
+- `lib/data/models/enums.dart`, `santri_record.dart`, `student.dart`
+- `lib/data/services/quran_engine_service.dart`, `auth_hash_service.dart`
+- `lib/presentation/widgets/misc_widgets.dart`, `status_badge.dart`
 
-Kalau nanti app guru meng-update salah satu file ini, tinggal copy ulang
-ke sini (atau — lebih baik — extract jadi package Dart terpisah yang
-di-`import` kedua app, sesuai saran di brief awal).
+**Disinkronkan terakhir:** 30 Agustus 2026, ikut update app guru
+terbaru (`app_colors.dart` & `enums.dart` — nambah 3 keterangan baru
+"Tidak Setoran/Tahsin/Murojaah"; `quran_engine_service.dart` — sekarang
+baca 1 file dataset gabungan, API publik tidak berubah). Kalau app guru
+update lagi salah satu file ini, tinggal copy ulang ke sini (atau,
+lebih baik jangka panjang: extract jadi package Dart terpisah yang
+di-`import` kedua app).
 
-## Yang baru dibuat (tidak ada di app guru, sesuai keputusan Anda)
-- `lib/data/models/santri_account.dart` — entitas akun santri terpisah, FK ke `Student.id`
+## Yang baru dibuat (tidak ada di app guru, murni untuk portal ini)
+- `lib/data/models/santri_account.dart` — akun login santri, FK ke `Student.id`
 - `lib/core/access/parent_access_scope.dart` — scope 1 santri per sesi login
-- `lib/data/repositories/*` — `StudentRepository`, `SantriAccountRepository`, `ReportRepository` (semua ada implementasi `Mock*` dulu)
-- `lib/data/services/progress_calculation_service.dart` — **skeleton**, formula final diputuskan STEP 6
-- `lib/providers/auth_provider.dart` — login pakai `SantriAccount`, hash pakai `AuthHashService` yang di-share
-- `lib/presentation/screens/admin/manage_accounts_screen.dart` — placeholder halaman terkunci PIN untuk kelola akun (detail STEP 10)
+- `lib/data/repositories/*` — `StudentRepository`, `SantriAccountRepository`,
+  `ReportRepository` — interface + implementasi `Mock*` (in-memory, seed demo)
+- `lib/data/services/juz_boundaries.dart` — batas 30 juz standar mushaf (data baku)
+- `lib/data/services/progress_calculation_service.dart` — **FINAL**: formula
+  baris-based per-juz (lihat dokumentasi di file itu untuk alasan)
+- `lib/providers/{auth,dashboard,hafalan}_provider.dart`
+- `lib/presentation/screens/{auth,dashboard,hafalan,history,profile}/*` — 5 layar orang tua, semua sudah full UI
+- `lib/presentation/screens/admin/{admin_pin_gate,manage_accounts_screen}.dart` — area admin di rute `/admin`
+- `lib/presentation/main_shell.dart` — nav adaptif (bottom bar mobile / rail desktop)
+- `lib/core/utils/responsive.dart` — pembatas lebar konten di layar besar
 
-## Placeholder (struktur siap, isi UI menyusul)
-`login_screen.dart` (STEP 4), `dashboard_screen.dart` (STEP 5),
-`hafalan_screen.dart` (STEP 6), `history_screen.dart` (STEP 7),
-`profile_screen.dart` (STEP 8).
+## Assets
+- `assets/data/quran_line_dataset_juz1-10_juz26-30_schema.json` ✅ sudah ada
+  (Juz 1-10 & 26-30 tersedia; Juz 11-25 memang belum ada dataset-nya di
+  app guru sendiri — kartu progress juz itu otomatis menampilkan
+  "Dataset belum tersedia", bukan 0%)
+- `assets/images/app_icon.png`, `logo_smpit.png` ✅ sudah ada
 
-## ⚠️ Yang masih Anda perlu sediakan sebelum STEP 6 akurat
-`QuranEngineService` butuh 2 file dataset yang **tidak ada di lib.zip**
-yang Anda upload (karena itu hanya folder `lib/`):
-- `assets/data/quran_line_dataset_legacy_juz1_10.json`
-- `assets/data/quran_line_dataset_juz26_30.json`
-
-Folder `assets/data/` sudah saya siapkan kosong. Tanpa 2 file ini,
-engine tetap jalan (ada try/catch, tidak crash) tapi cakupan baris = 0,
-jadi progress hafalan berbasis baris (opsi B di
-`progress_calculation_service.dart`) tidak akan akurat sampai file ini
-di-upload. Kalau Anda pilih opsi A (surah-count) di STEP 6, file ini
-tidak wajib.
-
-## Cara jalanin (setelah `flutter pub get`)
+## Cara jalanin
 ```
+flutter pub get
 flutter run -d chrome
 ```
+Akun demo (data dari `MockReportRepository`/`MockSantriAccountRepository`,
+hilang tiap refresh — lihat bagian STEP 10 di bawah):
+- `ahmad.fauzan` / `demo123` — ada 3 laporan contoh
+- `siti.aisyah` / `demo123` — belum ada laporan (buat test empty state)
 
-## Belum dikerjakan (menyusul step berikutnya sesuai rencana Anda)
-~~STEP 4~~ → ~~STEP 5~~ → ~~STEP 6~~ → ~~STEP 7~~ → ~~STEP 8~~ → ~~STEP 9~~ →
-**STEP 10 (integrasi backend) — lihat bagian di bawah, INI YANG BUTUH
-KEPUTUSAN ANDA sebelum bisa benar-benar "selesai".**
+Area admin (buat akun santri baru): buka `/#/admin` di browser, PIN
+placeholder `246810` (lihat catatan keamanan di `admin_pin_gate.dart`
+— WAJIB diganti sebelum production).
 
-## STEP 10 — Status & yang perlu diputuskan
+## STEP 10 — Integrasi Backend (Firestore) — status: rules & repository siap, MENUNGGU project Firebase
 
-**Yang sudah selesai (UI-level, jalan dengan Mock repository):**
-- Rute `/admin` (`AdminPinGate` -> `ManageAccountsScreen`) — PIN gate
-  terpisah total dari sesi orang tua, tidak ada link ke sana dari UI
-  orang tua sama sekali.
-- `ManageAccountsScreen`: lihat daftar santri belum punya akun, generate
-  username+password (password random 8 karakter, tanpa karakter
-  ambigu), lihat/nonaktifkan akun yang sudah ada.
-- Semua sudah lewat interface `StudentRepository`/`SantriAccountRepository`
-  yang sama dipakai bagian orang tua — tinggal ganti implementasi Mock
-  jadi implementasi backend, TIDAK perlu ubah UI sama sekali.
+**Approval Anda:** Firestore, rencana migrasi additive ke app guru — **disetujui**.
 
-**⚠️ Gap besar yang BELUM bisa saya selesaikan sendiri, butuh keputusan Anda:**
+### ⚠️ 1 pergeseran desain yang perlu Anda tahu (soal password)
 
-App guru **saat ini 100% menyimpan data secara lokal** di device guru
-(Hive `Box<String>`, lihat audit STEP 1) — **tidak ada backend/cloud
-sama sekali** yang bisa dibaca web parent dari device lain. Ini bukan
-"belum diintegrasikan", ini "memang belum ada sumber data bersama sama
-sekali". Supaya web parent bisa menampilkan data ASLI (bukan mock),
-harus ada salah satu dari ini:
+Rencana awal: `SantriAccount.passwordHash` disimpan di Firestore,
+diverifikasi client-side pakai `AuthHashService` yang sama kayak
+sekarang. **Ternyata ini bermasalah di Firestore**: supaya password bisa
+dicek SEBELUM login (client baca dulu hash-nya, baru dibandingkan),
+dokumen `santriAccounts` itu harus bisa dibaca oleh siapa saja yang
+belum login — artinya password hash SEMUA akun (bukan cuma milik
+pembaca) jadi bisa diintip siapa saja lewat DevTools browser.
 
-1. **Migrasi app guru ke cloud DB** (mis. Firestore) — app guru mulai
-   menulis ke cloud, bukan cuma Hive lokal. Ini teknisnya *penambahan*
-   (Hive bisa tetap jadi cache offline), tapi tetap **menyentuh app
-   guru** — bertentangan dengan prinsip "jangan merombak", walau
-   sifatnya additive bukan restructuring.
-2. **Mekanisme sync/export terpisah** — mis. app guru export
-   berkala/manual ke cloud storage, web parent baca dari situ. App guru
-   tetap disentuh (perlu fitur export), tapi lebih minimal.
-3. Opsi lain yang Anda punya di kepala tapi belum disebutkan di brief.
+**Solusi yang saya usulkan:** pindah verifikasi password ke **Firebase
+Authentication** (email/password, pakai email sintetis
+`username@quranreport-parent.app`) — password-nya dipegang penuh oleh
+Firebase, tidak pernah masuk Firestore sama sekali. `SantriAccount` di
+Firestore jadi cuma metadata (`studentId`, `isActive`), dan Security
+Rules cukup cek `request.auth.uid` — jauh lebih simpel & aman
+(lihat `firestore_integration/firestore.rules`).
 
-Saya **sengaja tidak memilih salah satu secara sepihak** karena ini
-langsung berkaitan dengan aturan keras #1 Anda ("jangan merombak
-aplikasi guru") — beda dengan keputusan SantriAccount/formula progress
-sebelumnya yang bisa saya selesaikan tanpa menyentuh app guru sama
-sekali, opsi manapun di sini **pasti** perlu app guru ditambah
-sesuatu (walau kecil). Kalau Anda pilih salah satu, saya lanjutkan
-implementasi repository backend-nya (`FirestoreStudentRepository`, dst)
-— strukturnya sudah siap dari STEP 3, tinggal isi.
+**Konsekuensi:** `AuthProvider.login()` nanti perlu diubah jadi manggil
+`FirebaseAuth.instance.signInWithEmailAndPassword()` dulu, baru ambil
+metadata. **Belum saya ubah** file `auth_provider.dart` yang di `lib/`
+sekarang — sengaja nunggu project Firebase-nya ada dulu supaya saya
+bisa test alurnya beneran, bukan nulis kode buta yang belum tentu jalan.
+
+### Isi folder `firestore_integration/` (di LUAR `lib/`, sengaja)
+
+Supaya project sekarang **tetap bisa di-build & demo** tanpa Firebase
+(pubspec belum nambah `cloud_firestore`), semua kode Firestore saya taruh
+terpisah dulu:
+- `firestore_student_repository.dart`, `firestore_report_repository.dart`,
+  `firestore_santri_account_repository.dart` — implementasi siap pakai,
+  tinggal pindah ke `lib/data/repositories/firestore/` begitu deps aktif
+- `firestore.rules` — draf Security Rules (belum di-deploy)
+- `GURU_APP_PATCH_storage_service.dart` — **usulan** patch minimal buat
+  `StorageService` app guru (mirror-write ke Firestore, Hive tetap sumber
+  utama & tetap jalan 100% offline kalau Firestore gagal). Baris
+  Firestore-nya masih di-comment — aktifkan setelah deps & config ada.
+  **Belum saya apply ke repo guru Anda** — ini draf untuk direview dulu.
+
+  Catatan: `Student` (data master santri) app guru **saat ini cuma seed
+  lokal** (`kSeedStudentsJson`, dibaca oleh `LocalStudentRepository`) —
+  belum ada fitur guru edit/tambah santri via UI. Jadi belum ada
+  write-path Student yang bisa di-mirror; kalau Firestore jadi sumber,
+  data santri perlu di-upload manual sekali (one-time import), bukan
+  otomatis ter-mirror kayak SantriRecord.
+
+### Yang perlu Anda siapkan (baru saya bisa lanjut coding beneran)
+
+1. **Bikin project Firebase**: buka [console.firebase.google.com](https://console.firebase.google.com) →
+   "Add project" → aktifkan **Firestore Database** (mode production,
+   pilih region terdekat mis. `asia-southeast2`) → aktifkan
+   **Authentication** → provider **Email/Password**.
+2. Jalankan `flutterfire configure` di root project `quran_report_parent_web`
+   (butuh Firebase CLI: `npm install -g firebase-tools` lalu `firebase login`)
+   — ini generate `lib/firebase_options.dart` otomatis.
+3. Kirim `project ID` Firebase-nya ke saya (tidak perlu kirim API key/secret
+   apa pun — `firebase_options.dart` isinya memang publik/aman di-commit).
+4. Konfirmasi: mau saya apply `GURU_APP_PATCH_storage_service.dart` ke repo
+   guru beneran setelah ini, atau Anda yang apply manual?
+
+Begitu #1-3 ada, saya: pindahkan 3 file repository ke `lib/`, uncomment
+dependency, deploy rules (perlu Anda jalankan `firebase deploy --only
+firestore:rules` karena butuh akses project Anda), dan ubah
+`auth_provider.dart` ke alur Firebase Auth.
 

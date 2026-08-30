@@ -20,10 +20,18 @@ dependencies:
   # dan tidak butuh generate dokumen. ---
   provider: ^6.1.2          # state management — sama seperti app guru
   google_fonts: ^6.2.1      # Plus Jakarta Sans — identik app guru
-  intl: ^0.19.0             # format tanggal Indonesia
+  intl: ^0.20.2              # format tanggal Indonesia — versi disamakan dgn pubspec app guru terbaru
   uuid: ^4.4.0              # generate id SantriAccount baru (admin page)
 
   cupertino_icons: ^1.0.8
+
+  # --- Firestore (STEP 10) --- NONAKTIF sampai project Firebase dibuat.
+  # Begitu project ada & `flutterfire configure` dijalankan (generate
+  # lib/firebase_options.dart), uncomment 2 baris di bawah + baris
+  # Firebase.initializeApp() di main.dart, lalu ganti provider Mock*
+  # jadi Firestore* di main.dart (lihat lib/data/repositories/firestore/).
+  # firebase_core: ^3.6.0
+  # cloud_firestore: ^5.4.4
 
 dev_dependencies:
   flutter_test:
