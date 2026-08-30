@@ -1,0 +1,37 @@
+name: quran_report_parent_web
+description: >
+  Portal Orang Tua — companion Flutter Web read-only app untuk Quran
+  Report (app guru). Menampilkan perkembangan hafalan/tahsin santri
+  kepada orang tua. TIDAK ADA fitur tulis (create/update/delete).
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- Dependency di bawah ini SENGAJA dipilih supaya identik dengan
+  # subset yang dipakai app guru untuk bagian yang di-*share* (theme,
+  # models, engine, hashing). Jangan tambah dependency mobile-only
+  # (image_picker, printing, pdf, excel, dst) — portal ini read-only
+  # dan tidak butuh generate dokumen. ---
+  provider: ^6.1.2          # state management — sama seperti app guru
+  google_fonts: ^6.2.1      # Plus Jakarta Sans — identik app guru
+  intl: ^0.19.0             # format tanggal Indonesia
+  uuid: ^4.4.0              # generate id SantriAccount baru (admin page)
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/data/
+    - assets/images/
