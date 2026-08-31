@@ -70,7 +70,7 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            InlineMessageBanner(
+            const InlineMessageBanner(
               message:
                   'Akun ini hanya bisa melihat data. Untuk perubahan data santri, silakan hubungi guru pembimbing.',
             ),

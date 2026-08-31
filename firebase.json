@@ -2,9 +2,6 @@
   "firestore": {
     "rules": "firestore_integration/firestore.rules"
   },
-  "functions": {
-    "source": "functions"
-  },
   "hosting": {
     "public": "build/web",
     "ignore": ["firebase.json", "**/.*"],
