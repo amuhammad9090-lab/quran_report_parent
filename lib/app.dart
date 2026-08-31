@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'core/theme/app_theme.dart';
 import 'presentation/main_shell.dart';
-import 'presentation/screens/admin/admin_pin_gate.dart';
+import 'presentation/screens/admin/admin_login_gate.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'providers/auth_provider.dart';
 
@@ -13,7 +13,7 @@ import 'providers/auth_provider.dart';
 ///
 /// Routing sengaja pakai 2 rute independen:
 ///  - `/` : alur orang tua (login -> MainShell), lewat [_AuthGate].
-///  - `/admin` : [AdminPinGate] -> [ManageAccountsScreen]. TIDAK ada
+///  - `/admin` : [AdminLoginGate] -> [ManageAccountsScreen]. TIDAK ada
 ///    link ke sini dari UI orang tua sama sekali — cuma bisa diakses
 ///    kalau tahu URL-nya langsung (`.../#/admin` dengan default hash
 ///    routing Flutter Web). Ini yang menggantikan opsi menambah layar
@@ -32,7 +32,7 @@ class ParentWebApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const _AuthGate(),
-        '/admin': (context) => const AdminPinGate(),
+        '/admin': (context) => const AdminLoginGate(),
       },
     );
   }

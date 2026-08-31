@@ -1,19 +1,10 @@
-// BELUM AKTIF — lihat catatan di firestore_student_repository.dart DAN
-// firestore.rules (perubahan desain: password lewat Firebase Auth,
-// bukan lagi passwordHash yang dibaca dari Firestore).
-//
-// AuthProvider (lib/providers/auth_provider.dart) JUGA perlu diubah kalau
-// opsi ini dipakai: `login()` jadi manggil
-// `FirebaseAuth.instance.signInWithEmailAndPassword(email:
-// '$username@quranreport-parent.app', password: password)` DULU, baru
-// setelah itu sukses, panggil `getByUid()` di sini buat ambil
-// studentId/isActive. Saya belum ubah auth_provider.dart yang di lib/
-// sekarang — nunggu project Firebase-nya ada dulu supaya bisa saya test
-// alurnya, bukan cuma nulis kode buta.
+// AKTIF — project Firebase: quran-reportweb. Login diverifikasi lewat
+// Firebase Authentication (email sintetis), BUKAN passwordHash — lihat
+// firestore.rules & AuthProvider.login() untuk alurnya.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../lib/data/models/santri_account.dart';
+import '../../models/santri_account.dart';
 
 /// Beda dari `SantriAccountRepository` interface yang di lib/ (yang masih
 /// berbasis passwordHash) — repository ini SENGAJA versi baru, cuma baca

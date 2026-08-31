@@ -1,0 +1,9 @@
+{
+  "name": "quran-report-parent-web-scripts",
+  "description": "Script one-time (bukan deployed) untuk import data awal ke Firestore.",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  },
+  "private": true
+}

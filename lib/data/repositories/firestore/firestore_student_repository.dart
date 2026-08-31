@@ -1,15 +1,9 @@
-// BELUM AKTIF — file ini SENGAJA di luar lib/ supaya project sekarang
-// tetap bisa di-build & demo tanpa Firebase. Begitu project Firebase
-// sudah dibuat & `flutterfire configure` dijalankan:
-//   1. Uncomment firebase_core & cloud_firestore di pubspec.yaml
-//   2. Pindahkan file ini ke lib/data/repositories/firestore/
-//   3. Ganti Provider<StudentRepository> di main.dart jadi
-//      FirestoreStudentRepository(schoolId: '...')
+// AKTIF — project Firebase: quran-reportweb.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../lib/data/models/student.dart';
-import '../../lib/data/repositories/student_repository.dart';
+import '../../models/student.dart';
+import '../../repositories/student_repository.dart';
 
 /// Baca [Student] dari `schools/{schoolId}/students/{id}` — read-only,
 /// sesuai brief (portal orang tua tidak pernah menulis ke koleksi ini).

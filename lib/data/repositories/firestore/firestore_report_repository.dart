@@ -1,10 +1,10 @@
-// BELUM AKTIF — lihat catatan di firestore_student_repository.dart.
+// AKTIF — project Firebase: quran-reportweb.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../lib/data/models/santri_record.dart';
-import '../../lib/data/models/student.dart';
-import '../../lib/data/repositories/report_repository.dart';
+import '../../models/santri_record.dart';
+import '../../models/student.dart';
+import '../../repositories/report_repository.dart';
 
 /// Baca [SantriRecord] dari `schools/{schoolId}/santriRecords/{id}`.
 ///

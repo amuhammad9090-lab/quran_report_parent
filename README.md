@@ -1,125 +1,129 @@
 # Quran Report — Portal Orang Tua
 
-Companion Flutter Web read-only untuk app guru **Quran Report**. Status:
-**STEP 1-9 selesai**, STEP 10 (integrasi backend) **UI-nya selesai**,
-tinggal implementasi Firestore-nya (lihat bagian paling bawah).
+Companion Flutter Web read-only untuk app guru **Quran Report**.
+**STEP 1-10 semua sudah diimplementasikan.** Backend: **Firestore**,
+project `quran-reportweb`.
 
 ## Yang di-*share* apa adanya dari app guru (TIDAK diubah, copy verbatim)
 - `lib/core/theme/app_colors.dart`, `app_theme.dart`
 - `lib/core/utils/text_utils.dart`
 - `lib/data/models/enums.dart`, `santri_record.dart`, `student.dart`
 - `lib/data/services/quran_engine_service.dart`, `auth_hash_service.dart`
+  (`auth_hash_service.dart` sudah tidak dipakai lagi di alur login —
+  lihat bagian Auth di bawah — tapi tetap disimpan, siapa tahu berguna)
 - `lib/presentation/widgets/misc_widgets.dart`, `status_badge.dart`
 
-**Disinkronkan terakhir:** 30 Agustus 2026, ikut update app guru
-terbaru (`app_colors.dart` & `enums.dart` — nambah 3 keterangan baru
-"Tidak Setoran/Tahsin/Murojaah"; `quran_engine_service.dart` — sekarang
-baca 1 file dataset gabungan, API publik tidak berubah). Kalau app guru
-update lagi salah satu file ini, tinggal copy ulang ke sini (atau,
-lebih baik jangka panjang: extract jadi package Dart terpisah yang
-di-`import` kedua app).
+**Disinkronkan terakhir:** 30 Agustus 2026.
 
-## Yang baru dibuat (tidak ada di app guru, murni untuk portal ini)
-- `lib/data/models/santri_account.dart` — akun login santri, FK ke `Student.id`
-- `lib/core/access/parent_access_scope.dart` — scope 1 santri per sesi login
-- `lib/data/repositories/*` — `StudentRepository`, `SantriAccountRepository`,
-  `ReportRepository` — interface + implementasi `Mock*` (in-memory, seed demo)
-- `lib/data/services/juz_boundaries.dart` — batas 30 juz standar mushaf (data baku)
-- `lib/data/services/progress_calculation_service.dart` — **FINAL**: formula
-  baris-based per-juz (lihat dokumentasi di file itu untuk alasan)
-- `lib/providers/{auth,dashboard,hafalan}_provider.dart`
-- `lib/presentation/screens/{auth,dashboard,hafalan,history,profile}/*` — 5 layar orang tua, semua sudah full UI
-- `lib/presentation/screens/admin/{admin_pin_gate,manage_accounts_screen}.dart` — area admin di rute `/admin`
-- `lib/presentation/main_shell.dart` — nav adaptif (bottom bar mobile / rail desktop)
-- `lib/core/utils/responsive.dart` — pembatas lebar konten di layar besar
+## Assets — semua sudah ada
+- `assets/data/quran_line_dataset_juz1-10_juz26-30_schema.json`
+- `assets/images/app_icon.png`, `logo_smpit.png`
 
-## Assets
-- `assets/data/quran_line_dataset_juz1-10_juz26-30_schema.json` ✅ sudah ada
-  (Juz 1-10 & 26-30 tersedia; Juz 11-25 memang belum ada dataset-nya di
-  app guru sendiri — kartu progress juz itu otomatis menampilkan
-  "Dataset belum tersedia", bukan 0%)
-- `assets/images/app_icon.png`, `logo_smpit.png` ✅ sudah ada
+## Backend: Firestore (project `quran-reportweb`)
 
-## Cara jalanin
+### Struktur data
+```
+schools/{schoolId}/
+  students/{studentId}       — Student.toJson(), read-only dari client
+  santriRecords/{recordId}   — SantriRecord.toJson(), read-only dari client
+  santriAccounts/{uid}       — {studentId, username, isActive, createdAt}
+                                 id dokumen = UID Firebase Auth
+```
+`schoolId` sekarang di-hardcode `smpit_al_madinah_tanjungpinang` (harus
+SAMA PERSIS dengan `schoolId` di data seed app guru — lihat
+`lib/core/utils/app_config.dart`) — single-tenant, 1 sekolah.
+
+### Auth: Firebase Authentication, BUKAN passwordHash
+
+Login santri pakai Firebase Auth (email/password), dengan email SINTETIS
+`username@quranreport-parent.app` (lihat `lib/core/utils/parent_auth_constants.dart`).
+**Kenapa bukan `AuthHashService` + baca `passwordHash` dari Firestore
+seperti rencana awal**: supaya password bisa dicek client-side SEBELUM
+login, dokumennya harus bisa dibaca publik — artinya hash SEMUA akun
+jadi bisa diintip siapa saja. Firebase Auth menghindari masalah ini
+total (password tidak pernah masuk Firestore).
+
+### Security Rules (`firestore_integration/firestore.rules`)
+- `santriAccounts/{uid}`: santri baca dokumennya sendiri; **admin** (email
+  cocok daftar di `isAdmin()`) baca+tulis semua.
+- `students/{id}`: santri baca datanya sendiri; admin baca semua. Tidak
+  ada write sama sekali (diisi lewat script seed).
+- `santriRecords/{id}`: santri baca kalau kelas+halaqoh+namaAnak cocok
+  dengan `Student` miliknya (dicek di rules, bukan cuma filter query
+  client).
+
+**Belum di-deploy** — jalankan dari root project:
+```
+firebase deploy --only firestore:rules
+```
+
+### Area Admin (`ManageAccountsScreen`, rute `/admin`) — TIDAK BUTUH BLAZE
+
+Awalnya saya desain area admin lewat Cloud Functions (Admin SDK) supaya
+bisa bypass rules dengan aman — tapi Cloud Functions generasi-2 WAJIB
+plan Blaze (pay-as-you-go), jadi saya desain ulang supaya **semuanya
+jalan di plan Spark (gratis)**:
+
+- Admin login pakai **Firebase Auth beneran** (email/password), BUKAN
+  PIN lokal lagi. Buat 1 akun admin manual sekali: Firebase Console →
+  Authentication → Add user → email `admin@quranreport-parent-admin.local`
+  (HARUS PERSIS — dicek di `firestore.rules`) + password pilihan Anda.
+- `firestore.rules` (`isAdmin()`) izinkan email itu baca+tulis
+  `students`/`santriAccounts` LANGSUNG — enforcement beneran di rules,
+  bukan di UI.
+- Bikin akun santri baru (`AdminAccountService.createAccount`) pakai
+  **secondary Firebase App instance** (trik client-side, bukan Admin
+  SDK) supaya proses `createUserWithEmailAndPassword` tidak
+  menggantikan sesi login admin yang aktif.
+- Nonaktifkan akun cukup lewat field `isActive` di Firestore — santri
+  yang dinonaktifkan tetap gagal login (`AuthProvider` cek `isActive`
+  setelah sign-in Firebase Auth berhasil, langsung sign-out paksa kalau
+  false).
+
+**Mau tambah/hapus admin?** Edit daftar email di `isAdmin()`
+(`firestore_integration/firestore.rules`), lalu `firebase deploy --only
+firestore:rules` lagi.
+
+### Data awal (seed) — `students` sudah siap diimpor, `santriRecords` masih manual
+
+`Student` (data master santri) di app guru **saat ini cuma seed lokal**
+(`kSeedStudentsJson`, 302 santri, dibaca `LocalStudentRepository`) —
+belum ada UI guru buat tambah/edit santri, apalagi sinkron ke Firestore.
+Jadi:
+- **`students`**: sudah saya extract ke `scripts/students_seed.json`
+  (302 santri, persis sama dengan data app guru per 30 Agustus 2026) +
+  script `scripts/seed_students.js` buat upload sekali ke Firestore.
+  Cara pakai:
+  ```bash
+  cd scripts
+  npm install
+  # download service account key dari Firebase Console -> Project
+  # Settings -> Service Accounts -> Generate new private key -> simpan
+  # sebagai scripts/service-account.json
+  node seed_students.js
+  ```
+  Catatan: script ini pakai Admin SDK tapi dijalankan LOKAL sekali lewat
+  `node` (bukan Cloud Function yang di-deploy/hosting) — tetap TIDAK
+  butuh plan Blaze.
+  Aman dijalankan ulang (pakai `.set()`, overwrite bukan duplikat).
+- **`santriRecords`** akan otomatis ter-mirror begitu
+  `GURU_APP_PATCH_storage_service.dart` (lihat folder
+  `firestore_integration/`) diterapkan ke app guru — **belum
+  diterapkan**, masih draf/usulan, nunggu konfirmasi Anda siapa yang apply.
+
+## Cara jalanin (setelah rules di-deploy + students di-seed + akun admin dibuat)
 ```
 flutter pub get
 flutter run -d chrome
 ```
-Akun demo (data dari `MockReportRepository`/`MockSantriAccountRepository`,
-hilang tiap refresh — lihat bagian STEP 10 di bawah):
-- `ahmad.fauzan` / `demo123` — ada 3 laporan contoh
-- `siti.aisyah` / `demo123` — belum ada laporan (buat test empty state)
+Buka `/#/admin`, login pakai akun admin yang dibuat di Firebase Console,
+klik "Buat Akun" untuk santri yang mau dibuatkan login orang tua-nya.
 
-Area admin (buat akun santri baru): buka `/#/admin` di browser, PIN
-placeholder `246810` (lihat catatan keamanan di `admin_pin_gate.dart`
-— WAJIB diganti sebelum production).
-
-## STEP 10 — Integrasi Backend (Firestore) — status: rules & repository siap, MENUNGGU project Firebase
-
-**Approval Anda:** Firestore, rencana migrasi additive ke app guru — **disetujui**.
-
-### ⚠️ 1 pergeseran desain yang perlu Anda tahu (soal password)
-
-Rencana awal: `SantriAccount.passwordHash` disimpan di Firestore,
-diverifikasi client-side pakai `AuthHashService` yang sama kayak
-sekarang. **Ternyata ini bermasalah di Firestore**: supaya password bisa
-dicek SEBELUM login (client baca dulu hash-nya, baru dibandingkan),
-dokumen `santriAccounts` itu harus bisa dibaca oleh siapa saja yang
-belum login — artinya password hash SEMUA akun (bukan cuma milik
-pembaca) jadi bisa diintip siapa saja lewat DevTools browser.
-
-**Solusi yang saya usulkan:** pindah verifikasi password ke **Firebase
-Authentication** (email/password, pakai email sintetis
-`username@quranreport-parent.app`) — password-nya dipegang penuh oleh
-Firebase, tidak pernah masuk Firestore sama sekali. `SantriAccount` di
-Firestore jadi cuma metadata (`studentId`, `isActive`), dan Security
-Rules cukup cek `request.auth.uid` — jauh lebih simpel & aman
-(lihat `firestore_integration/firestore.rules`).
-
-**Konsekuensi:** `AuthProvider.login()` nanti perlu diubah jadi manggil
-`FirebaseAuth.instance.signInWithEmailAndPassword()` dulu, baru ambil
-metadata. **Belum saya ubah** file `auth_provider.dart` yang di `lib/`
-sekarang — sengaja nunggu project Firebase-nya ada dulu supaya saya
-bisa test alurnya beneran, bukan nulis kode buta yang belum tentu jalan.
-
-### Isi folder `firestore_integration/` (di LUAR `lib/`, sengaja)
-
-Supaya project sekarang **tetap bisa di-build & demo** tanpa Firebase
-(pubspec belum nambah `cloud_firestore`), semua kode Firestore saya taruh
-terpisah dulu:
-- `firestore_student_repository.dart`, `firestore_report_repository.dart`,
-  `firestore_santri_account_repository.dart` — implementasi siap pakai,
-  tinggal pindah ke `lib/data/repositories/firestore/` begitu deps aktif
-- `firestore.rules` — draf Security Rules (belum di-deploy)
-- `GURU_APP_PATCH_storage_service.dart` — **usulan** patch minimal buat
-  `StorageService` app guru (mirror-write ke Firestore, Hive tetap sumber
-  utama & tetap jalan 100% offline kalau Firestore gagal). Baris
-  Firestore-nya masih di-comment — aktifkan setelah deps & config ada.
-  **Belum saya apply ke repo guru Anda** — ini draf untuk direview dulu.
-
-  Catatan: `Student` (data master santri) app guru **saat ini cuma seed
-  lokal** (`kSeedStudentsJson`, dibaca oleh `LocalStudentRepository`) —
-  belum ada fitur guru edit/tambah santri via UI. Jadi belum ada
-  write-path Student yang bisa di-mirror; kalau Firestore jadi sumber,
-  data santri perlu di-upload manual sekali (one-time import), bukan
-  otomatis ter-mirror kayak SantriRecord.
-
-### Yang perlu Anda siapkan (baru saya bisa lanjut coding beneran)
-
-1. **Bikin project Firebase**: buka [console.firebase.google.com](https://console.firebase.google.com) →
-   "Add project" → aktifkan **Firestore Database** (mode production,
-   pilih region terdekat mis. `asia-southeast2`) → aktifkan
-   **Authentication** → provider **Email/Password**.
-2. Jalankan `flutterfire configure` di root project `quran_report_parent_web`
-   (butuh Firebase CLI: `npm install -g firebase-tools` lalu `firebase login`)
-   — ini generate `lib/firebase_options.dart` otomatis.
-3. Kirim `project ID` Firebase-nya ke saya (tidak perlu kirim API key/secret
-   apa pun — `firebase_options.dart` isinya memang publik/aman di-commit).
-4. Konfirmasi: mau saya apply `GURU_APP_PATCH_storage_service.dart` ke repo
-   guru beneran setelah ini, atau Anda yang apply manual?
-
-Begitu #1-3 ada, saya: pindahkan 3 file repository ke `lib/`, uncomment
-dependency, deploy rules (perlu Anda jalankan `firebase deploy --only
-firestore:rules` karena butuh akses project Anda), dan ubah
-`auth_provider.dart` ke alur Firebase Auth.
-
+## Checklist yang masih perlu Anda lakukan
+1. `firebase deploy --only firestore:rules`
+2. Buat 1 akun admin: Firebase Console → Authentication → Add user →
+   `admin@quranreport-parent-admin.local` + password pilihan Anda
+3. `cd scripts && npm install && node seed_students.js` (butuh
+   `scripts/service-account.json` dari Firebase Console — lihat bagian
+   "Data awal" di atas) — upload 302 data Student ke Firestore
+4. Putuskan siapa yang apply `GURU_APP_PATCH_storage_service.dart` ke repo app guru

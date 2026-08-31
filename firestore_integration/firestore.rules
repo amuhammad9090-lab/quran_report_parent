@@ -1,20 +1,18 @@
-// firestore.rules — DRAF, belum di-deploy (belum ada project Firebase).
+// firestore.rules
 //
-// PERUBAHAN DESAIN yang saya usulkan di titik ini (baca catatan lengkap
-// di README.md bagian "STEP 10 — kenapa geser ke Firebase Auth"):
-// alih-alih verifikasi password lewat `AuthHashService` + baca
-// `passwordHash` dari Firestore (masalah: supaya bisa dicek di client,
-// dokumennya harus bisa dibaca SEBELUM auth — itu berarti hash semua
-// akun jadi bisa dibaca siapa saja, termasuk yang bukan pemiliknya),
-// saya usulkan LOGIN SANTRI LEWAT FIREBASE AUTH (email/password, pakai
-// email sintetis `username@quranreport-parent.app`). Firebase yang
-// pegang password (di luar Firestore sama sekali), dan rules di bawah
-// cukup cek `request.auth.uid` — jauh lebih aman & rules-nya sederhana.
+// PERUBAHAN DESAIN #1 (login santri): password diverifikasi lewat
+// FIREBASE AUTH (email sintetis `username@quranreport-parent.app`),
+// BUKAN `passwordHash` yang dibaca dari Firestore — supaya password
+// tidak pernah perlu dibuka ke client sebelum auth (lihat README.md).
 //
-// Konsekuensi: `SantriAccount.passwordHash` TIDAK dipakai lagi kalau opsi
-// ini diambil — field itu diganti jadi cuma metadata (studentId,
-// isActive), passwordnya sendiri hidup di Firebase Auth. `id` dokumen
-// SantriAccount = UID Firebase Auth akun itu.
+// PERUBAHAN DESAIN #2 (admin, versi TANPA Cloud Functions/Blaze):
+// admin login lewat akun Firebase Auth SUNGGUHAN (bukan cuma PIN lokal
+// di client) — emailnya dicek langsung di rules lewat
+// `isAdmin()`. Ini menghindari kebutuhan Cloud Functions generasi-2
+// yang WAJIB plan Blaze — semuanya jalan di plan Spark (gratis).
+// Trade-off: daftar admin di-hardcode di rules (perlu re-deploy rules
+// kalau mau tambah/hapus admin) — untuk 1 sekolah dengan 1-2 admin,
+// ini lebih simpel daripada infra Cloud Functions.
 
 rules_version = '2';
 
@@ -31,33 +29,53 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/schools/$(schoolId)/students/$(myAccount().studentId)).data;
       }
 
-      // Akun santri — dokumen HANYA bisa dibaca oleh dirinya sendiri
-      // (uid Firebase Auth = ID dokumen). TIDAK ADA write dari client
-      // sama sekali (create/update/deactivate akun HARUS lewat Cloud
-      // Function admin, bukan langsung dari ManageAccountsScreen client
-      // SDK — lihat catatan di README).
+      // GANTI daftar ini kalau mau tambah/hapus admin — harus di-deploy
+      // ulang (`firebase deploy --only firestore:rules`) tiap ubah.
+      function isAdmin() {
+        return request.auth != null &&
+          request.auth.token.email in [
+            'admin@quranreport-parent-admin.local'
+          ];
+      }
+
+      // Akun santri:
+      //  - santri baca dokumennya sendiri (uid = ID dokumen)
+      //  - admin baca/tulis SEMUA (buat akun baru, nonaktifkan)
       match /santriAccounts/{accountId} {
-        allow read: if request.auth != null && request.auth.uid == accountId;
+        allow read: if isAdmin() || (request.auth != null && request.auth.uid == accountId);
+        allow write: if isAdmin();
+      }
+
+      // Data master santri:
+      //  - santri baca datanya sendiri
+      //  - admin baca semua (buat pilih santri saat bikin akun) — TIDAK
+      //    ada write, Student memang read-only total (diisi lewat
+      //    script seed, bukan dari UI ini)
+      match /students/{studentId} {
+        allow read: if isAdmin() || (request.auth != null && myAccount().studentId == studentId);
         allow write: if false;
       }
 
-      // Data master santri — cuma bisa dibaca oleh SantriAccount yang
-      // studentId-nya cocok.
-      match /students/{studentId} {
-        allow read: if request.auth != null && myAccount().studentId == studentId;
-        allow write: if false; // portal orang tua tidak pernah menulis
+      // <-- BARU: app guru pakai auth lokalnya sendiri (bukan Firebase
+      // Auth), jadi butuh identitas di mata Firestore buat bisa nulis.
+      // Sign-in ANONIM dipakai khusus untuk ini — santri/admin SELALU
+      // login pakai email+password (isAdmin()/myAccount() di atas), jadi
+      // provider anonim = pasti bukan mereka, aman dibedakan.
+      function isGuruApp() {
+        return request.auth != null &&
+          request.auth.token.firebase.sign_in_provider == 'anonymous';
       }
 
       // Laporan — SantriRecord tidak punya studentId (desain existing
-      // app guru, lihat audit STEP 1), jadi rule di sini cek kelas +
-      // halaqoh + namaAnak cocok dengan data Student milik si pembaca —
-      // bukan cuma filter di query client, tapi genuinely dicek di rules.
+      // app guru), jadi dicek kelas+halaqoh+namaAnak cocok dengan
+      // Student milik si pembaca — genuinely dicek di rules, bukan
+      // cuma filter di query client.
       match /santriRecords/{recordId} {
-        allow read: if request.auth != null &&
+        allow read: if request.auth != null && !isAdmin() &&
           myStudent().nama == resource.data.namaAnak &&
           myStudent().kelas == resource.data.kelas &&
           myStudent().halaqoh == resource.data.halaqoh;
-        allow write: if false;
+        allow write: if isGuruApp(); // <-- BARU: mirror-write dari app guru
       }
     }
   }

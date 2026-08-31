@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node (scripts/, functions/ kalau masih ada) — <-- BARU
+node_modules/
+npm-debug.log*
+
+# Firebase Admin SDK service account — <-- BARU (RAHASIA, JANGAN COMMIT)
+scripts/service-account.json
+**/service-account.json
+
+# Firebase Functions local config/emulator (kalau nanti dipakai lagi) — <-- BARU
+functions/.runtimeconfig.json
+.firebase/
