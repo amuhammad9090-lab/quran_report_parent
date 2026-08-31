@@ -19,19 +19,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Sama seperti app guru — dibutuhkan supaya DateFormat(..., 'id_ID')
-  // di seluruh UI (dashboard, riwayat) tidak crash di runtime.
   await initializeDateFormatting('id_ID', null);
-
-  // Engine baris Qur'an — sama seperti app guru, di-load sekali di awal
-  // (murni dari assets lokal, tidak terkait Firestore sama sekali).
   await QuranEngineService.instance.load();
 
-  // STEP 10 (final): backend production = Firestore, project
-  // "quran-reportweb". Mock*Repository (lib/data/repositories/*.dart,
-  // BUKAN yang di folder firestore/) masih ada di project ini untuk
-  // referensi/testing offline, tapi TIDAK dipakai di sini lagi.
   final studentRepository = FirestoreStudentRepository(schoolId: kSchoolId);
   final santriAccountRepository = FirestoreSantriAccountRepository(schoolId: kSchoolId);
   final reportRepository = FirestoreReportRepository(schoolId: kSchoolId);

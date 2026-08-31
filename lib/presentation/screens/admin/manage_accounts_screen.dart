@@ -122,6 +122,77 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     }
   }
 
+  // <-- BARU: seluruh method ini. "Reset" di sini artinya: akun LAMA
+  // dinonaktifkan (password lama otomatis gak bisa dipake lagi, walau
+  // secara teknis akun Firebase Auth-nya masih ada, nganggur), lalu
+  // dibuatkan akun BARU (username+password baru) buat santri yang sama.
+  // Ini BUKAN literal "ganti password akun yang sama" — soalnya Firebase
+  // gak ngasih cara ganti password akun ORANG LAIN dari client app tanpa
+  // Cloud Functions/Blaze plan (baca README.md). Efeknya ke orang tua
+  // sama aja: dikasih kredensial baru yang langsung bisa dipake.
+  Future<bool> _confirmReset(String namaSantri) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset akun?'),
+        content: Text(
+          'Password LAMA punya $namaSantri akan langsung berhenti berfungsi, '
+          'lalu dibuatkan username & password BARU. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Ya, Reset')),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _resetAccountFor(Map<String, dynamic> account) async {
+    final studentId = account['studentId'] as String;
+    final namaSantri = _studentNameFor(studentId);
+
+    if (!await _confirmReset(namaSantri)) return;
+
+    try {
+      // Nonaktifkan akun lama dulu.
+      await _service.setAccountActive(account['id'] as String, false);
+
+      // Username baru: base dari nama + suffix angka acak, dicoba
+      // beberapa kali kalau kebetulan bentrok sama username lain.
+      final baseUsername = _suggestUsername(namaSantri);
+      final password = _generatePassword();
+      Map<String, String>? result;
+      Object? lastError;
+      for (var attempt = 0; attempt < 5 && result == null; attempt++) {
+        final candidate = '$baseUsername${Random.secure().nextInt(90) + 10}';
+        try {
+          result = await _service.createAccount(
+            studentId: studentId,
+            username: candidate,
+            password: password,
+          );
+        } catch (e) {
+          lastError = e; // kemungkinan username bentrok — coba lagi
+        }
+      }
+      if (result == null) throw lastError ?? StateError('Gagal buat akun baru setelah beberapa percobaan');
+
+      await _load();
+      if (!mounted) return;
+      await _showCredentialDialog(
+        namaSantri: namaSantri,
+        username: result['username']!,
+        password: result['password']!,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal reset akun: $e')),
+      );
+    }
+  }
+
   String _suggestUsername(String nama) {
     final parts = nama.trim().toLowerCase().split(RegExp(r'\s+'));
     final base = parts.length >= 2 ? '${parts.first}.${parts.last}' : parts.first;
@@ -209,9 +280,24 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                                     ),
                                     title: Text(a['username'] as String),
                                     subtitle: Text(_studentNameFor(a['studentId'] as String)),
-                                    trailing: TextButton(
-                                      onPressed: () => _toggleActive(a),
-                                      child: Text((a['isActive'] as bool) ? 'Nonaktifkan' : 'Aktifkan'),
+                                    trailing: PopupMenuButton<String>(
+                                      onSelected: (value) {
+                                        if (value == 'toggle') {
+                                          _toggleActive(a);
+                                        } else if (value == 'reset') {
+                                          _resetAccountFor(a);
+                                        }
+                                      },
+                                      itemBuilder: (ctx) => [
+                                        PopupMenuItem(
+                                          value: 'toggle',
+                                          child: Text((a['isActive'] as bool) ? 'Nonaktifkan' : 'Aktifkan'),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'reset',
+                                          child: Text('Reset Akun (password baru)'),
+                                        ),
+                                      ],
                                     ),
                                   ),
                               ],
