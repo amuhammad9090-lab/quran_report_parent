@@ -15,20 +15,17 @@ dependencies:
 
   # --- Dependency di bawah ini SENGAJA dipilih supaya identik dengan
   # subset yang dipakai app guru untuk bagian yang di-*share* (theme,
-  # models, engine, hashing). Jangan tambah dependency mobile-only
-  # (image_picker, printing, pdf, excel, dst) — portal ini read-only
-  # dan tidak butuh generate dokumen. ---
-  provider: ^6.1.2          # state management — sama seperti app guru
-  google_fonts: ^6.2.1      # Plus Jakarta Sans — identik app guru
-  intl: ^0.20.2              # format tanggal Indonesia — versi disamakan dgn pubspec app guru terbaru
-  uuid: ^4.4.0              # generate id SantriAccount baru (admin page)
+  # models, engine, hashing).
+  provider: ^6.1.2
+  google_fonts: ^6.2.1
+  intl: ^0.20.2
+  uuid: ^4.4.0
+  shared_preferences: ^2.3.2
 
   cupertino_icons: ^1.0.8
 
   # --- Firestore (STEP 10) --- AKTIF, project Firebase sudah ada
-  # (quran-reportweb). Semua fitur (termasuk area admin) sengaja
-  # didesain supaya jalan di plan Spark (gratis) — TIDAK butuh Cloud
-  # Functions/Blaze sama sekali.
+  # (quran-reportweb).
   firebase_core: ^3.6.0
   cloud_firestore: ^5.4.4
   firebase_auth: ^5.3.1

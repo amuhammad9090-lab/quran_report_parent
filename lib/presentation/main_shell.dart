@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/utils/responsive.dart';
+import '../data/repositories/parent_note_repository.dart';
 import '../data/repositories/report_repository.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/parent_note_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/hafalan/hafalan_screen.dart';
 import 'screens/history/history_screen.dart';
@@ -29,10 +31,23 @@ class MainShell extends StatelessWidget {
     // seluruh sesi (bukan per-tab), supaya data tidak di-fetch ulang
     // tiap pindah tab Dashboard/Hafalan/Riwayat.
     final student = context.read<AuthProvider>().currentStudent!;
-    return ChangeNotifierProvider(
-      create: (ctx) => DashboardProvider(
-        reportRepository: ctx.read<ReportRepository>(),
-      )..load(student),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (ctx) => DashboardProvider(
+            reportRepository: ctx.read<ReportRepository>(),
+          )..load(student),
+        ),
+        // Provider terpisah dari DashboardProvider (yang murni baca) —
+        // ini satu-satunya bagian sesi orang tua yang menulis data,
+        // lihat catatan arsitektur di `parent_note_repository.dart`.
+        ChangeNotifierProvider(
+          create: (ctx) => ParentNoteProvider(
+            repository: ctx.read<ParentNoteRepository>(),
+            student: student,
+          )..loadRecent(),
+        ),
+      ],
       child: const _MainShellBody(),
     );
   }

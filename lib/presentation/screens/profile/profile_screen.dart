@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/utils/responsive.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/theme_provider.dart';
 import '../../widgets/misc_widgets.dart';
 
 /// Profil santri — READ-ONLY total (sesuai brief: "Tidak ada editing
@@ -69,6 +70,9 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+            const SectionLabel('Tampilan'),
+            const _ThemeModeCard(),
             const SizedBox(height: 20),
             const InlineMessageBanner(
               message:
@@ -110,6 +114,99 @@ class ProfileScreen extends StatelessWidget {
     if (parts.isEmpty || parts.first.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+  }
+}
+
+/// Pemilih Terang / Gelap / Ikuti Sistem — lihat [ThemeProvider].
+/// Ditaruh di tab Profil (satu-satunya "pengaturan" yang dimiliki
+/// portal ini) supaya pilihan tampilan gampang ditemukan tanpa
+/// menambah tab baru.
+class _ThemeModeCard extends StatelessWidget {
+  const _ThemeModeCard();
+
+  static const _options = [
+    (mode: ThemeMode.light, label: 'Terang', icon: Icons.light_mode_rounded),
+    (mode: ThemeMode.dark, label: 'Gelap', icon: Icons.dark_mode_rounded),
+    (mode: ThemeMode.system, label: 'Sistem', icon: Icons.smartphone_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final cs = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            for (final opt in _options) ...[
+              if (opt != _options.first) const SizedBox(width: 8),
+              Expanded(
+                child: _ThemeModeOption(
+                  label: opt.label,
+                  icon: opt.icon,
+                  selected: themeProvider.mode == opt.mode,
+                  color: cs.primary,
+                  onTap: () => themeProvider.setMode(opt.mode),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeModeOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ThemeModeOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? color : Colors.transparent, width: 1.4),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: selected ? color : cs.onSurfaceVariant),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected ? color : cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

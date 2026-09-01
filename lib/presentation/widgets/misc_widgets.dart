@@ -410,15 +410,64 @@ class WelcomeHeroCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget? actions;
+
+  /// Opsional — avatar/ikon bulat di kiri judul (mis. inisial nama
+  /// santri di Dashboard). Null = layout lama tanpa avatar, tetap sama
+  /// persis seperti sebelumnya.
+  final Widget? leading;
+
+  /// Label kecil di atas [title] (mis. sapaan "Selamat Pagi 👋"),
+  /// ditampilkan sebelum judul dengan opacity lebih redup. Opsional.
+  final String? eyebrow;
+
   const WelcomeHeroCard({
     super.key,
     required this.title,
     required this.subtitle,
     this.actions,
+    this.leading,
+    this.eyebrow,
   });
 
   @override
   Widget build(BuildContext context) {
+    final titleColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (eyebrow != null) ...[
+          Text(
+            eyebrow!,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.78),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+            height: 1.25,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
@@ -445,24 +494,17 @@ class WelcomeHeroCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
+              if (leading == null)
+                titleColumn
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    leading!,
+                    const SizedBox(width: 14),
+                    Expanded(child: titleColumn),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
               if (actions != null) ...[
                 const SizedBox(height: 18),
                 Divider(color: Colors.white.withValues(alpha: 0.18), height: 1),
