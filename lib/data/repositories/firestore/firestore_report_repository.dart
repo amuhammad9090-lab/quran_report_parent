@@ -1,5 +1,7 @@
 // AKTIF — project Firebase: quran-reportweb.
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/santri_record.dart';
@@ -35,12 +37,28 @@ class FirestoreReportRepository implements ReportRepository {
     // antara Student.nama & SantriRecord.namaAnak, pertimbangkan simpan
     // field tambahan `namaAnakLower` khusus buat query (denormalisasi
     // umum di Firestore) — BUKAN mengubah cara app guru menyimpan nama.
+    //
+    // <-- BARU: .timeout(...) — sebelumnya kalau query ini nyangkut
+    // (apa pun sebabnya: koneksi, index, dll), await-nya nunggu
+    // SELAMANYA, bikin UI muter tanpa akhir. Sekarang dipaksa gagal
+    // eksplisit setelah 15 detik, supaya try/catch di DashboardProvider
+    // KETANGKEP dan errornya kelihatan, bukan nyangkut diam-diam.
+    // .get(const GetOptions(source: Source.server)) — <-- BARU juga,
+    // maksa ambil dari server (bukan diam-diam nunggu cache lokal yang
+    // mungkin belum ke-sync).
     final snap = await _col
         .where('kelas', isEqualTo: student.kelas)
         .where('halaqoh', isEqualTo: student.halaqoh)
         .where('namaAnak', isEqualTo: student.nama)
         .orderBy('tanggal', descending: true)
-        .get();
+        .get(const GetOptions(source: Source.server))
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw TimeoutException(
+            'Query santriRecords timeout 15 detik (kelas=${student.kelas}, '
+            'halaqoh=${student.halaqoh}, namaAnak=${student.nama})',
+          ),
+        );
 
     return snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList();
   }

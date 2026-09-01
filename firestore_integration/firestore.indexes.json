@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "santriRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kelas", "order": "ASCENDING" },
+        { "fieldPath": "halaqoh", "order": "ASCENDING" },
+        { "fieldPath": "namaAnak", "order": "ASCENDING" },
+        { "fieldPath": "tanggal", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

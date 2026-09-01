@@ -14,14 +14,29 @@ class DashboardProvider extends ChangeNotifier {
   DashboardProvider({required this.reportRepository});
 
   bool isLoading = false;
+  // <-- BARU: sebelumnya gak ada try/catch di load() -- kalau query
+  // Firestore gagal (index belum jadi, rules, dll), isLoading NGGAK
+  // PERNAH balik ke false, jadi UI muter selama-lamanya tanpa pesan
+  // error apa pun. Sekarang error ke-tangkep & disimpan di [error].
+  String? error;
   List<SantriRecord> records = [];
 
   Future<void> load(Student student) async {
     isLoading = true;
+    error = null;
     notifyListeners();
-    records = await reportRepository.getRecordsForStudent(student);
-    isLoading = false;
-    notifyListeners();
+    try {
+      records = await reportRepository.getRecordsForStudent(student);
+    } catch (e, st) {
+      // debugPrint biar tetap kelihatan jelas di console browser (F12),
+      // gampang dibedain dari noise log Firebase yang lain.
+      debugPrint('DashboardProvider.load GAGAL: $e\n$st');
+      error = e.toString();
+      records = [];
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   /// Laporan paling baru (records sudah terurut terbaru dulu dari
