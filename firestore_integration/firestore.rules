@@ -74,14 +74,24 @@ service cloud.firestore {
           myStudent().halaqoh == resource.data.halaqoh);
         allow write: if isGuruApp(); // mirror-write dari app guru
       }
-      // <-- BARU: seluruh match ini. Metadata "kartu identitas kosong"
-      // (santri yang sudah diaktifkan di app guru tapi belum ada
-      // laporannya) — dipakai fitur "Pulihkan dari Cloud" biar kartu
-      // kosong itu juga ikut balik nama aslinya (bukan huruf kecil
-      // semua) kalau data lokal HP guru hilang. Cuma app guru yang
-      // pernah baca/tulis dokumen ini, santri/admin tidak pernah butuh
-      // ini sama sekali.
+      // Metadata "kartu identitas kosong" (santri yang sudah diaktifkan
+      // di app guru tapi belum ada laporannya) — dipakai fitur
+      // "Pulihkan dari Cloud" biar kartu kosong itu juga ikut balik
+      // nama aslinya (bukan huruf kecil semua) kalau data lokal HP guru
+      // hilang. Cuma app guru yang pernah baca/tulis dokumen ini,
+      // santri/admin tidak pernah butuh ini sama sekali.
       match /appMeta/{docId} {
+        allow read, write: if isGuruApp();
+      }
+      // <-- BARU: seluruh match ini. Folder laporan (organisasi guru) —
+      // dipakai fitur mirror-backup & "Pulihkan dari Cloud" di app guru
+      // (StorageService.upsertFolder/deleteFolder/restoreFoldersFromFirestore).
+      // Sama persis pola appMeta: cuma app guru (anonim) yang pernah
+      // baca/tulis, santri/admin tidak pernah butuh ini — sebelum block
+      // ini ditambah, collection ini nggak ke-cover rule manapun
+      // sehingga default-deny Firestore bikin restore folder selalu
+      // permission-denied.
+      match /reportFolders/{folderId} {
         allow read, write: if isGuruApp();
       }
     }
