@@ -77,29 +77,6 @@ service cloud.firestore {
           myStudent().halaqoh == resource.data.halaqoh;
         allow write: if isGuruApp(); // <-- BARU: mirror-write dari app guru
       }
-
-      // <-- BARU: "Catatan untuk Guru" — SATU-SATUNYA pengecualian
-      // terhadap prinsip "portal orang tua read-only total". Orang tua
-      // (santri yang login) boleh MEMBUAT dokumen baru di sini, TAPI:
-      //  - `studentId` di dokumen WAJIB sama dengan studentId akunnya
-      //    sendiri (tidak bisa mengatasnamakan santri lain);
-      //  - `isRead` WAJIB dikirim `false` saat dibuat (tidak bisa
-      //    langsung menandai catatannya sendiri "sudah dibaca");
-      //  - TIDAK ADA `allow update`/`allow delete` untuk santri sama
-      //    sekali — sekali terkirim, orang tua tidak bisa mengubah/
-      //    menghapus catatannya lagi dari sini.
-      // App guru (anonim, lihat isGuruApp()) baca semua catatan (untuk
-      // notifikasi) dan boleh update (buat menandai `isRead: true`
-      // setelah dibuka).
-      match /parentNotes/{noteId} {
-        allow create: if request.auth != null && !isAdmin() && !isGuruApp() &&
-          request.resource.data.studentId == myAccount().studentId &&
-          request.resource.data.isRead == false;
-        allow read: if isAdmin() || isGuruApp() ||
-          (request.auth != null && !isAdmin() &&
-            resource.data.studentId == myAccount().studentId);
-        allow update, delete: if isGuruApp() || isAdmin();
-      }
     }
   }
 }

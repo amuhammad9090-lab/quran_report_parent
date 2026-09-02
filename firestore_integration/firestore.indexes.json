@@ -9,14 +9,6 @@
         { "fieldPath": "namaAnak", "order": "ASCENDING" },
         { "fieldPath": "tanggal", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "parentNotes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

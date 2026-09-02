@@ -20,12 +20,13 @@ dependencies:
   google_fonts: ^6.2.1
   intl: ^0.20.2
   uuid: ^4.4.0
-  shared_preferences: ^2.3.2
 
   cupertino_icons: ^1.0.8
 
   # --- Firestore (STEP 10) --- AKTIF, project Firebase sudah ada
-  # (quran-reportweb).
+  # (quran-reportweb). Semua fitur (termasuk area admin) sengaja
+  # didesain supaya jalan di plan Spark (gratis) — TIDAK butuh Cloud
+  # Functions/Blaze sama sekali.
   firebase_core: ^3.6.0
   cloud_firestore: ^5.4.4
   firebase_auth: ^5.3.1

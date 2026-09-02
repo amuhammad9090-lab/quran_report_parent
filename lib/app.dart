@@ -6,12 +6,10 @@ import 'presentation/main_shell.dart';
 import 'presentation/screens/admin/admin_login_gate.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'providers/auth_provider.dart';
-import 'providers/theme_provider.dart';
 
 /// Root widget. Theme di-reuse 100% dari [AppTheme] (file di-share apa
-/// adanya dari app guru) — light & dark mode tersedia, dan orang tua
-/// bisa memilih sendiri lewat [ThemeProvider] (default: ikut sistem,
-/// sama seperti sebelumnya, lihat switcher di tab Profil).
+/// adanya dari app guru) — light & dark mode otomatis ikut sistem, sama
+/// seperti app guru.
 ///
 /// Routing sengaja pakai 2 rute independen:
 ///  - `/` : alur orang tua (login -> MainShell), lewat [_AuthGate].
@@ -25,13 +23,12 @@ class ParentWebApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = context.watch<ThemeProvider>().mode;
     return MaterialApp(
       title: 'Quran Report — Portal Orang Tua',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
+      themeMode: ThemeMode.system,
       initialRoute: '/',
       routes: {
         '/': (context) => const _AuthGate(),
