@@ -97,4 +97,47 @@ class DashboardProvider extends ChangeNotifier {
   /// per-juz baru dihitung di STEP 6, lihat ProgressCalculationService).
   int get totalBarisTercapai =>
       records.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
+
+  // ---------------------------------------------------------------------
+  // Rekap Pekanan — dipakai buat banner Dashboard + card "Baris Pekan
+  // Ini" / "Progres Hafalan" / "Rekap Terakhir". Pekan berjalan = Senin
+  // 00:00 s/d Minggu 23:59 (pekan kalender, Senin hari pertama). Ini
+  // CUMA soal kapan pekan itu sendiri mulai/berakhir — beda dari kapan
+  // guru biasanya "nutup"/merampungkan rekapnya (Jumat/Sabtu), yang
+  // otomatis kelihatan dari [tanggalRekapTerakhirPekanIni] di bawah.
+  // ---------------------------------------------------------------------
+
+  DateTime get _weekStart {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return today.subtract(Duration(days: today.weekday - 1));
+  }
+
+  DateTime get _weekEnd => _weekStart.add(const Duration(days: 6));
+
+  bool _isInCurrentWeek(DateTime tanggal) {
+    final d = DateTime(tanggal.year, tanggal.month, tanggal.day);
+    return !d.isBefore(_weekStart) && !d.isAfter(_weekEnd);
+  }
+
+  /// Subset [records] yang tanggalnya jatuh di pekan berjalan, tetap
+  /// terurut terbaru dulu.
+  List<SantriRecord> get recordsThisWeek =>
+      records.where((r) => _isInCurrentWeek(r.tanggal)).toList();
+
+  /// Total baris Tahfizh yang tercapai DI PEKAN BERJALAN SAJA — beda
+  /// dari [totalBarisTercapai] yang akumulasi sepanjang riwayat. Ini
+  /// yang dibandingkan ke target mingguan per halaqoh
+  /// ([weeklyTargetBarisForHalaqoh]) buat card "Progres Hafalan", dan
+  /// ditampilkan mentah di card "Baris Pekan Ini" + banner Dashboard.
+  int get barisTercapaiPekanIni =>
+      recordsThisWeek.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
+
+  /// Tanggal laporan PALING BARU di pekan berjalan — null kalau belum
+  /// ada laporan sama sekali di pekan ini. Dipakai buat card "Rekap
+  /// Terakhir" (biasanya jatuh Jumat/Sabtu, tergantung guru).
+  DateTime? get tanggalRekapTerakhirPekanIni {
+    if (recordsThisWeek.isEmpty) return null;
+    return recordsThisWeek.map((r) => r.tanggal).reduce((a, b) => a.isAfter(b) ? a : b);
+  }
 }
