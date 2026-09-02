@@ -3,18 +3,28 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../data/models/enums.dart';
+import '../../../data/models/parent_note.dart';
+import '../../../data/models/santri_record.dart';
 import '../../../data/models/student.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/weekly_target.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/dashboard_provider.dart';
+import '../../../providers/parent_note_provider.dart';
 import '../../widgets/misc_widgets.dart';
 import '../../widgets/status_badge.dart';
 
 /// Dashboard — "Seberapa jauh perkembangan hafalan anak saya?" dijawab
-/// dalam satu layar, sesuai brief. Header pakai [WelcomeHeroCard] —
-/// kartu gradien dengan avatar inisial santri + ringkasan "Capaian
-/// Pekan Ini" (lihat [_DashboardHero]).
+/// dalam satu layar, sesuai brief. Semua data dari [DashboardProvider]
+/// (tidak ada angka hardcode). Responsive: grid ringkasan pakai
+/// [LayoutBuilder] — 2 kolom di mobile, 4 kolom begitu lebar cukup
+/// (tablet/desktop), bukan cuma layout mobile yang di-scale.
+///
+/// Header pakai [WelcomeHeroCard] — kartu gradien dengan avatar inisial
+/// santri + ringkasan "Capaian Pekan Ini" (lihat [_DashboardHero]). Di
+/// paling bawah ada kartu "Catatan untuk Guru" ([_ParentNoteComposer])
+/// — satu-satunya bagian portal ini yang MENULIS data (lihat
+/// `parent_note_provider.dart`), semua yang lain tetap murni baca.
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -55,6 +65,18 @@ class DashboardScreen extends StatelessWidget {
                             _CatatanGuruCard(dash: dash),
                           ],
                         ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionLabel('Catatan untuk Guru'),
+                      _ParentNoteComposer(latestRecord: dash.latest),
+                    ],
+                  ),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -403,6 +425,172 @@ class _CatatanGuruCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Kartu "Catatan untuk Guru" — orang tua menulis feedback singkat
+/// (mis. "Ananda semalam demam, mohon dimaklumi kalau setorannya belum
+/// lancar") yang tersimpan ke koleksi `parentNotes` (lihat
+/// `parent_note_provider.dart` & `firestore_parent_note_repository.dart`).
+/// Di bawah kolom tulis ada daftar ringkas catatan yang sudah pernah
+/// dikirim, dengan status "Terkirim" / "Sudah dibaca guru".
+class _ParentNoteComposer extends StatefulWidget {
+  final SantriRecord? latestRecord;
+  const _ParentNoteComposer({required this.latestRecord});
+
+  @override
+  State<_ParentNoteComposer> createState() => _ParentNoteComposerState();
+}
+
+class _ParentNoteComposerState extends State<_ParentNoteComposer> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit(ParentNoteProvider notes) async {
+    final message = _controller.text;
+    final ok = await notes.sendNote(message, latestRecord: widget.latestRecord);
+    if (!mounted) return;
+    if (ok) {
+      _controller.clear();
+      FocusScope.of(context).unfocus();
+      showAppSnackbar(context, 'Catatan terkirim ke guru pembimbing.');
+    } else if (notes.error != null) {
+      showAppSnackbar(context, notes.error!, icon: Icons.error_outline_rounded);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final notes = context.watch<ParentNoteProvider>();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SoftIconBox(icon: Icons.edit_note_rounded, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Ada yang ingin disampaikan ke guru pembimbing? Catatan ini akan '
+                    'langsung muncul sebagai notifikasi di aplikasi guru.',
+                    style: TextStyle(fontSize: 12.5, height: 1.5, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _controller,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 500,
+              enabled: !notes.isSending,
+              decoration: InputDecoration(
+                hintText: 'Tulis catatan untuk guru pembimbing…',
+                filled: true,
+                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                contentPadding: const EdgeInsets.all(14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                counterStyle: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: notes.isSending ? null : () => _submit(notes),
+                icon: notes.isSending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.send_rounded, size: 17),
+                label: Text(notes.isSending ? 'Mengirim…' : 'Kirim Catatan'),
+              ),
+            ),
+            if (notes.recent.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Divider(color: Theme.of(context).dividerTheme.color),
+              const SizedBox(height: 6),
+              Text(
+                'RIWAYAT TERKIRIM',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              for (final note in notes.recent) ...[
+                _SentNoteRow(note: note),
+                if (note != notes.recent.last) const SizedBox(height: 12),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SentNoteRow extends StatelessWidget {
+  final ParentNote note;
+  const _SentNoteRow({required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isRead = note.isRead;
+    final createdAt = note.createdAt;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          isRead ? Icons.done_all_rounded : Icons.check_rounded,
+          size: 15,
+          color: isRead ? cs.primary : cs.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                note.message,
+                style: const TextStyle(fontSize: 12.5, height: 1.4),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                [
+                  if (createdAt != null) DateFormat('d MMM, HH:mm', 'id_ID').format(createdAt),
+                  isRead ? 'Sudah dibaca guru' : 'Terkirim',
+                ].join(' • '),
+                style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

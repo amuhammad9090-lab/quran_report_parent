@@ -412,10 +412,11 @@ class WelcomeHeroCard extends StatelessWidget {
   final Widget? actions;
 
   /// Opsional — avatar/ikon bulat di kiri judul (mis. inisial nama
-  /// santri di Dashboard). Null = layout lama tanpa avatar.
+  /// santri di Dashboard). Null = layout lama tanpa avatar, tetap sama
+  /// persis seperti sebelumnya.
   final Widget? leading;
 
-  /// Label kecil di atas [title] (mis. "Assalamu'alaikum 👋"),
+  /// Label kecil di atas [title] (mis. sapaan "Selamat Pagi 👋"),
   /// ditampilkan sebelum judul dengan opacity lebih redup. Opsional.
   final String? eyebrow;
 
@@ -459,8 +460,9 @@ class WelcomeHeroCard extends StatelessWidget {
             fontWeight: FontWeight.w800,
             height: 1.25,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           subtitle,
           style: TextStyle(
@@ -498,7 +500,9 @@ class WelcomeHeroCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (leading != null)
+              if (leading == null)
+                titleColumn
+              else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -506,9 +510,7 @@ class WelcomeHeroCard extends StatelessWidget {
                     const SizedBox(width: 14),
                     Expanded(child: titleColumn),
                   ],
-                )
-              else
-                titleColumn,
+                ),
               if (weeklyRecap != null) ...[
                 const SizedBox(height: 18),
                 Divider(color: Colors.white.withValues(alpha: 0.18), height: 1),
