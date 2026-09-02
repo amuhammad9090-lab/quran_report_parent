@@ -13,22 +13,16 @@
 // Trade-off: daftar admin di-hardcode di rules (perlu re-deploy rules
 // kalau mau tambah/hapus admin) — untuk 1 sekolah dengan 1-2 admin,
 // ini lebih simpel daripada infra Cloud Functions.
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
     match /schools/{schoolId} {
-
       function myAccount() {
         return get(/databases/$(database)/documents/schools/$(schoolId)/santriAccounts/$(request.auth.uid)).data;
       }
-
       function myStudent() {
         return get(/databases/$(database)/documents/schools/$(schoolId)/students/$(myAccount().studentId)).data;
       }
-
       // GANTI daftar ini kalau mau tambah/hapus admin — harus di-deploy
       // ulang (`firebase deploy --only firestore:rules`) tiap ubah.
       function isAdmin() {
@@ -37,7 +31,6 @@ service cloud.firestore {
             'admin@quranreport-admin.app'
           ];
       }
-
       // Akun santri:
       //  - santri baca dokumennya sendiri (uid = ID dokumen)
       //  - admin baca/tulis SEMUA (buat akun baru, nonaktifkan)
@@ -45,7 +38,6 @@ service cloud.firestore {
         allow read: if isAdmin() || (request.auth != null && request.auth.uid == accountId);
         allow write: if isAdmin();
       }
-
       // Data master santri:
       //  - santri baca datanya sendiri
       //  - admin baca semua (buat pilih santri saat bikin akun) — TIDAK
@@ -55,50 +47,42 @@ service cloud.firestore {
         allow read: if isAdmin() || (request.auth != null && myAccount().studentId == studentId);
         allow write: if false;
       }
-
-      // <-- BARU: app guru pakai auth lokalnya sendiri (bukan Firebase
-      // Auth), jadi butuh identitas di mata Firestore buat bisa nulis.
-      // Sign-in ANONIM dipakai khusus untuk ini — santri/admin SELALU
-      // login pakai email+password (isAdmin()/myAccount() di atas), jadi
+      // app guru pakai auth lokalnya sendiri (bukan Firebase Auth), jadi
+      // butuh identitas di mata Firestore buat bisa nulis. Sign-in
+      // ANONIM dipakai khusus untuk ini — santri/admin SELALU login
+      // pakai email+password (isAdmin()/myAccount() di atas), jadi
       // provider anonim = pasti bukan mereka, aman dibedakan.
       function isGuruApp() {
         return request.auth != null &&
           request.auth.token.firebase.sign_in_provider == 'anonymous';
       }
-
       // Laporan — SantriRecord tidak punya studentId (desain existing
       // app guru), jadi dicek kelas+halaqoh+namaAnak cocok dengan
       // Student milik si pembaca — genuinely dicek di rules, bukan
       // cuma filter di query client.
       match /santriRecords/{recordId} {
-        allow read: if request.auth != null && !isAdmin() &&
+        // <-- DIUBAH: dulu cuma santri (Portal Orang Tua) yang boleh
+        // baca. App guru (anonim) sudah boleh WRITE (mirror-backup) tapi
+        // belum pernah dikasih izin READ, jadi fitur "Pulihkan dari
+        // Cloud" (butuh baca balik semua santriRecords) selalu ditolak
+        // permission-denied. isGuruApp() ditambah di sini SEBELUM
+        // kondisi santri (dicek pertama & lebih murah — nggak perlu
+        // get() ke santriAccounts/students kalau yang baca app guru).
+        allow read: if isGuruApp() || (request.auth != null && !isAdmin() &&
           myStudent().nama == resource.data.namaAnak &&
           myStudent().kelas == resource.data.kelas &&
-          myStudent().halaqoh == resource.data.halaqoh;
-        allow write: if isGuruApp(); // <-- BARU: mirror-write dari app guru
+          myStudent().halaqoh == resource.data.halaqoh);
+        allow write: if isGuruApp(); // mirror-write dari app guru
       }
-
-      // <-- BARU: "Catatan untuk Guru" — SATU-SATUNYA pengecualian
-      // terhadap prinsip "portal orang tua read-only total". Orang tua
-      // (santri yang login) boleh MEMBUAT dokumen baru di sini, TAPI:
-      //  - `studentId` di dokumen WAJIB sama dengan studentId akunnya
-      //    sendiri (tidak bisa mengatasnamakan santri lain);
-      //  - `isRead` WAJIB dikirim `false` saat dibuat (tidak bisa
-      //    langsung menandai catatannya sendiri "sudah dibaca");
-      //  - TIDAK ADA `allow update`/`allow delete` untuk santri sama
-      //    sekali — sekali terkirim, orang tua tidak bisa mengubah/
-      //    menghapus catatannya lagi dari sini.
-      // App guru (anonim, lihat isGuruApp()) baca semua catatan (untuk
-      // notifikasi) dan boleh update (buat menandai `isRead: true`
-      // setelah dibuka).
-      match /parentNotes/{noteId} {
-        allow create: if request.auth != null && !isAdmin() && !isGuruApp() &&
-          request.resource.data.studentId == myAccount().studentId &&
-          request.resource.data.isRead == false;
-        allow read: if isAdmin() || isGuruApp() ||
-          (request.auth != null && !isAdmin() &&
-            resource.data.studentId == myAccount().studentId);
-        allow update, delete: if isGuruApp() || isAdmin();
+      // <-- BARU: seluruh match ini. Metadata "kartu identitas kosong"
+      // (santri yang sudah diaktifkan di app guru tapi belum ada
+      // laporannya) — dipakai fitur "Pulihkan dari Cloud" biar kartu
+      // kosong itu juga ikut balik nama aslinya (bukan huruf kecil
+      // semua) kalau data lokal HP guru hilang. Cuma app guru yang
+      // pernah baca/tulis dokumen ini, santri/admin tidak pernah butuh
+      // ini sama sekali.
+      match /appMeta/{docId} {
+        allow read, write: if isGuruApp();
       }
     }
   }
