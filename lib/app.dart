@@ -41,17 +41,35 @@ class ParentWebApp extends StatelessWidget {
   }
 }
 
-/// Gate sederhana: belum login -> [LoginScreen], sudah login ->
-/// [MainShell]. Logic penuh (loading/error state visual) menyusul di
-/// STEP 4 bersama implementasi [LoginScreen].
-class _AuthGate extends StatelessWidget {
+/// Gate sesi: [AuthProvider.restoreSession] dipanggil SEKALI di awal
+/// (initState) buat cek apakah ada sesi Firebase Auth yang masih
+/// tersimpan di browser — supaya refresh/pull-to-refresh TIDAK
+/// nge-lempar balik ke [LoginScreen] selama orang tua belum logout
+/// manual. Selagi status masih unknown/loading, tampilkan spinner
+/// (bukan langsung nembak ke LoginScreen) biar nggak ada "kedip" ke
+/// login sebelum sesi selesai dicek.
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => context.read<AuthProvider>().restoreSession());
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     if (auth.status == AuthStatus.loggedIn) {
       return const MainShell();
+    }
+    if (auth.status == AuthStatus.unknown || auth.status == AuthStatus.loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return const LoginScreen();
   }

@@ -94,6 +94,41 @@ service cloud.firestore {
       match /reportFolders/{folderId} {
         allow read, write: if isGuruApp();
       }
+      // <-- BARU: seluruh match ini. Sebelumnya TIDAK ADA rule untuk
+      // collection ini sama sekali -> Firestore default-deny bikin DUA
+      // arah gagal total: (1) Portal Ortu tidak bisa CREATE catatan baru
+      // (permission-denied), dan (2) app guru tidak bisa READ untuk
+      // ditampilkan sebagai notifikasi/badge. Skema di bawah ini
+      // mengikuti persis dokumentasi yang sudah ada di
+      // `firestore_parent_note_repository.dart` (Portal Ortu) &
+      // `parent_note_service.dart`/`parent_notes_provider.dart` (app
+      // guru) — cuma menuliskan rule yang sudah lama dijanjikan lewat
+      // komentar itu, belum benar-benar ada sebelumnya.
+      match /parentNotes/{noteId} {
+        // App guru (anonim): baca semua (buat badge/notifikasi live),
+        // dan HANYA boleh update field `isRead` (menandai sudah dibaca)
+        // -- tidak boleh mengubah field lain sama sekali, sesuai desain
+        // ParentNoteService.markAsRead di app guru yang memang hanya
+        // pernah mengirim {'isRead': true}.
+        allow read: if isGuruApp();
+        allow update: if isGuruApp() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+
+        // Santri (Portal Ortu): boleh baca riwayat catatan MILIKNYA
+        // sendiri (dipakai getRecentForStudent), dan boleh membuat
+        // catatan baru selama studentId-nya cocok akun yang sedang
+        // login (tidak bisa mengatasnamakan santri lain) serta isRead
+        // dikirim false (tidak bisa langsung menandai "sudah dibaca"
+        // sendiri) -- persis syarat yang sudah didokumentasikan di
+        // FirestoreParentNoteRepository.
+        allow read: if request.auth != null && !isAdmin() && !isGuruApp() &&
+          resource.data.studentId == myAccount().studentId;
+        allow create: if request.auth != null && !isAdmin() && !isGuruApp() &&
+          request.resource.data.studentId == myAccount().studentId &&
+          request.resource.data.isRead == false;
+
+        allow write: if isAdmin();
+      }
     }
   }
 }

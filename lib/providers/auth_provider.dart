@@ -48,28 +48,15 @@ class AuthProvider extends ChangeNotifier {
       final uid = credential.user?.uid;
       if (uid == null) throw StateError('uid null setelah sign-in berhasil');
 
-      final account = await accountRepository.getByUid(uid);
-      if (account == null) {
-        // Akun Firebase Auth ada tapi dokumen metadata tidak ada/isActive
-        // false — jangan biarkan orang login tanpa data santri yang valid.
+      final ok = await _loadAccountAndStudent(uid);
+      if (!ok) {
         await _auth.signOut();
         status = AuthStatus.error;
-        errorMessage = 'Akun tidak ditemukan atau sudah dinonaktifkan.';
+        errorMessage ??= 'Akun tidak ditemukan atau sudah dinonaktifkan.';
         notifyListeners();
         return;
       }
 
-      final student = await studentRepository.getById(account.studentId);
-      if (student == null) {
-        await _auth.signOut();
-        status = AuthStatus.error;
-        errorMessage = 'Data santri untuk akun ini tidak ditemukan.';
-        notifyListeners();
-        return;
-      }
-
-      currentStudent = student;
-      scope = ParentAccessScope(studentId: student.id, santriAccountId: uid);
       status = AuthStatus.loggedIn;
       notifyListeners();
     } on FirebaseAuthException {
@@ -83,6 +70,108 @@ class AuthProvider extends ChangeNotifier {
       status = AuthStatus.error;
       errorMessage = 'Terjadi kesalahan. Coba lagi.';
       notifyListeners();
+    }
+  }
+
+  /// Dipanggil SEKALI di awal (lihat `_AuthGate` di app.dart) buat
+  /// memulihkan sesi Firebase Auth yang mungkin masih tersimpan di
+  /// browser (mis. tab di-refresh / pull-to-refresh) — supaya orang tua
+  /// TIDAK perlu login ulang tiap kali halaman dimuat ulang, cuma
+  /// [logout] manual yang beneran mengakhiri sesi.
+  Future<void> restoreSession() async {
+    status = AuthStatus.loading;
+    notifyListeners();
+
+    // Di web, `currentUser` bisa masih null SESAAT walau sebenarnya ada
+    // sesi tersimpan (SDK belum selesai rehydrate dari IndexedDB). Kalau
+    // null, tunggu emisi PERTAMA dari authStateChanges() biar nggak
+    // salah nganggap "belum pernah login".
+    final user = _auth.currentUser ?? await _auth.authStateChanges().first;
+    if (user == null) {
+      status = AuthStatus.loggedOut;
+      notifyListeners();
+      return;
+    }
+
+    final ok = await _loadAccountAndStudent(user.uid);
+    if (!ok) {
+      await _auth.signOut();
+      status = AuthStatus.loggedOut;
+      notifyListeners();
+      return;
+    }
+
+    status = AuthStatus.loggedIn;
+    notifyListeners();
+  }
+
+  /// Isi [currentStudent]/[scope] dari [uid] Firebase Auth yang sudah
+  /// login — dipakai bareng oleh [login] dan [restoreSession] supaya
+  /// logikanya (akun aktif? data santri ada?) tidak dobel-tulis.
+  /// Return false kalau akun/data santri tidak valid (pemanggil yang
+  /// putuskan sikapnya: [login] set errorMessage, [restoreSession] diam
+  /// saja balik ke loggedOut).
+  Future<bool> _loadAccountAndStudent(String uid) async {
+    try {
+      final account = await accountRepository.getByUid(uid);
+      if (account == null) return false;
+
+      final student = await studentRepository.getById(account.studentId);
+      if (student == null) {
+        errorMessage = 'Data santri untuk akun ini tidak ditemukan.';
+        return false;
+      }
+
+      currentStudent = student;
+      scope = ParentAccessScope(studentId: student.id, santriAccountId: uid);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Ganti password akun santri yang SEDANG login. Butuh [currentPassword]
+  /// buat re-autentikasi dulu (syarat Firebase Auth untuk operasi
+  /// sensitif seperti ganti password — kalau sesi login sudah agak lama,
+  /// tanpa ini akan gagal dengan `requires-recent-login`).
+  ///
+  /// Ini beneran mengganti password di Firebase Auth (server), BUKAN
+  /// disimpan di penyimpanan lokal browser — jadi TIDAK akan balik ke
+  /// password lama walau cache/local storage browser dihapus.
+  ///
+  /// Return null kalau sukses, atau pesan error yang aman ditampilkan ke
+  /// orang tua kalau gagal.
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      return 'Sesi login tidak valid, silakan login ulang.';
+    }
+
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Password lama salah.';
+        case 'weak-password':
+          return 'Password baru terlalu lemah (minimal 6 karakter).';
+        case 'requires-recent-login':
+          return 'Sesi login sudah terlalu lama. Logout lalu login ulang sebelum ganti password.';
+        default:
+          return 'Gagal mengganti password (${e.code}).';
+      }
+    } catch (_) {
+      return 'Terjadi kesalahan. Coba lagi.';
     }
   }
 
