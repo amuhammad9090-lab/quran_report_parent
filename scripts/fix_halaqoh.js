@@ -1,75 +1,75 @@
-// Script SEKALI PANGGIL (bukan Cloud Function, tidak di-deploy) — benerin
-// field `halaqoh` di collection `students` yang salah format.
+// fix_halaqoh.js
 //
-// PENYEBAB BUG: field `halaqoh` di `students` tersimpan dengan prefix
-// "Halaqoh " (contoh: "Halaqoh B"), sedangkan app guru nulis `halaqoh`
-// di `santriRecords` cuma hurufnya doang (contoh: "B") — beda persis
-// karena query Portal Orang Tua exact-match, `.where('halaqoh', ...)`
-// gak pernah ketemu, laporan keliatan "Belum ada" padahal datanya ada.
-//
-// Script ini strip "Halaqoh " (case-insensitive, dengan/tanpa spasi
-// setelahnya) dari SEMUA dokumen students, jadi tersisa cuma hurufnya
-// ("Halaqoh B" -> "B"), match sama format app guru.
+// One-time script: normalisasi field `halaqoh` di collection `students`
+// dari format panjang ("Halaqoh B") ke format pendek ("B"), biar match
+// sama konvensi yang dipakai app guru di `santriRecords` (namaAnak,
+// kelas, halaqoh dicek EXACT MATCH di firestore.rules).
 //
 // CARA PAKAI:
-//   cd scripts
-//   node fix_halaqoh.js
-//
-// Aman dijalankan berkali-kali (idempotent) — dokumen yang halaqoh-nya
-// udah bener (gak ada prefix "Halaqoh ") dilewatin aja, gak diubah.
+// 1. npm install firebase-admin
+// 2. Firebase Console -> project quran-reportweb -> Project settings
+//    -> Service accounts -> "Generate new private key" -> simpan sebagai
+//    serviceAccountKey.json di folder yang sama dengan script ini.
+//    JANGAN commit file ini ke git, hapus setelah selesai dipakai.
+// 3. node fix_halaqoh.js            (DRY RUN dulu, cuma nampilin apa yang
+//                                    akan diubah, TIDAK menulis apa-apa)
+// 4. node fix_halaqoh.js --apply    (baru ini yang beneran nulis ke Firestore)
 
 const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json');
+const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-const SCHOOL_ID = 'smpit_al_madinah_tanjungpinang'; // <-- samain kalau beda
+const db = admin.firestore();
+const SCHOOL_ID = 'smpit_al_madinah_tanjungpinang'; // sama seperti kSchoolId di app
+const APPLY = process.argv.includes('--apply');
 
 async function main() {
-  const db = admin.firestore();
-  const col = db.collection('schools').doc(SCHOOL_ID).collection('students');
-  const snap = await col.get();
+  const studentsRef = db
+    .collection('schools')
+    .doc(SCHOOL_ID)
+    .collection('students');
 
-  console.log(`Ketemu ${snap.size} dokumen students. Mengecek field halaqoh...`);
+  const snapshot = await studentsRef.get();
+  console.log(`Total dokumen students: ${snapshot.size}`);
 
-  let fixed = 0;
-  let skipped = 0;
-  const batch = db.batch();
+  let toFix = 0;
+  let batch = db.batch();
   let batchCount = 0;
 
-  for (const doc of snap.docs) {
+  for (const doc of snapshot.docs) {
     const data = doc.data();
-    const current = (data.halaqoh || '').toString();
-    // Strip "Halaqoh " di depan, case-insensitive, apa pun jumlah spasinya.
-    const stripped = current.replace(/^halaqoh\s*/i, '').trim();
+    const halaqoh = data.halaqoh;
 
-    if (stripped !== current) {
-      batch.update(doc.ref, { halaqoh: stripped });
-      console.log(`  FIX  ${doc.id} (${data.nama || '?'}): "${current}" -> "${stripped}"`);
-      fixed++;
-      batchCount++;
-    } else {
-      skipped++;
-    }
+    if (typeof halaqoh === 'string' && halaqoh.trim().toLowerCase().startsWith('halaqoh ')) {
+      const newHalaqoh = halaqoh.trim().slice('halaqoh '.length).trim();
+      console.log(`${doc.id} (${data.nama}): "${halaqoh}" -> "${newHalaqoh}"`);
+      toFix++;
 
-    // Firestore batch max 500 operasi — commit & mulai batch baru kalau
-    // mepet, biar aman buat sekolah dengan santri sangat banyak.
-    if (batchCount >= 400) {
-      await batch.commit();
-      batchCount = 0;
+      if (APPLY) {
+        batch.update(doc.ref, { halaqoh: newHalaqoh });
+        batchCount++;
+        // Firestore batch max 500 operasi
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+      }
     }
   }
 
-  if (batchCount > 0) {
+  if (APPLY && batchCount > 0) {
     await batch.commit();
   }
 
-  console.log(`\nSelesai. Diperbaiki: ${fixed}. Dilewati (udah bener): ${skipped}.`);
+  console.log(`\nTotal yang perlu/sudah diubah: ${toFix}`);
+  console.log(APPLY ? 'SELESAI, sudah ditulis ke Firestore.' : 'DRY RUN doang, belum ada yang ditulis. Jalankan ulang dengan --apply kalau hasil di atas sudah benar.');
 }
 
 main().catch((err) => {
-  console.error('Gagal:', err);
+  console.error('Error:', err);
   process.exit(1);
 });
