@@ -68,7 +68,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           const AppIconMark(size: 68, borderRadius: 18),
                           const SizedBox(width: 14),
-                          Container(height: 40, width: 1, color: cs.outlineVariant),
+                          Container(
+                              height: 40, width: 1, color: cs.outlineVariant),
                           const SizedBox(width: 14),
                           const SmpitLogoBadge(size: 64, borderRadius: 14),
                         ],
@@ -78,13 +79,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text(
                       'Portal Orang Tua',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       "Pantau perkembangan hafalan dan capaian Al-Qur'an ananda.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                      style:
+                          TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                     ),
                     const SizedBox(height: 28),
                     TextFormField(
@@ -94,10 +97,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: fieldDecoration(
                         context,
                         icon: Icons.person_outline_rounded,
-                        label: 'Username / NIS / ID Santri',
+                        label: 'Username',
                       ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Wajib diisi'
+                          : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -147,7 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Gunakan username & kata sandi yang diberikan oleh guru pembimbing. Akun ini hanya bisa melihat, tidak bisa mengubah data.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11.5, height: 1.4),
+                      style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11.5,
+                          height: 1.4),
                     ),
                   ],
                 ),
