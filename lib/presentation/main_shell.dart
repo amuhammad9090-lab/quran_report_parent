@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../core/utils/responsive.dart';
 import '../data/repositories/parent_note_repository.dart';
 import '../data/repositories/report_repository.dart';
+import '../data/repositories/weekly_recap_repository.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/parent_note_provider.dart';
+import '../providers/weekly_recap_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
@@ -47,6 +49,15 @@ class MainShell extends StatelessWidget {
             repository: ctx.read<ParentNoteRepository>(),
             student: student,
           )..loadRecent(),
+        ),
+        // <-- BARU: rekap pekanan yang di-deploy guru dari
+        // GenerateRekapPekananScreen (app guru) — ditampilkan sebagai
+        // section di HistoryScreen.
+        ChangeNotifierProvider(
+          create: (ctx) => WeeklyRecapProvider(
+            repository: ctx.read<WeeklyRecapRepository>(),
+            student: student,
+          )..load(),
         ),
       ],
       child: const _MainShellBody(),

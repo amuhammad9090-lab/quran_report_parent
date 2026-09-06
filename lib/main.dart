@@ -9,9 +9,11 @@ import 'data/repositories/firestore/firestore_parent_note_repository.dart';
 import 'data/repositories/firestore/firestore_report_repository.dart';
 import 'data/repositories/firestore/firestore_santri_account_repository.dart';
 import 'data/repositories/firestore/firestore_student_repository.dart';
+import 'data/repositories/firestore/firestore_weekly_recap_repository.dart';
 import 'data/repositories/parent_note_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'data/repositories/student_repository.dart';
+import 'data/repositories/weekly_recap_repository.dart';
 import 'data/services/progress_calculation_service.dart';
 import 'data/services/quran_engine_service.dart';
 import 'firebase_options.dart';
@@ -29,6 +31,8 @@ Future<void> main() async {
   final santriAccountRepository = FirestoreSantriAccountRepository(schoolId: kSchoolId);
   final reportRepository = FirestoreReportRepository(schoolId: kSchoolId);
   final parentNoteRepository = FirestoreParentNoteRepository(schoolId: kSchoolId);
+  // <-- BARU: rekap pekanan yang di-deploy guru (lihat WeeklyRecap).
+  final weeklyRecapRepository = FirestoreWeeklyRecapRepository(schoolId: kSchoolId);
   final progressService = ProgressCalculationService(engine: QuranEngineService.instance);
 
   runApp(
@@ -37,6 +41,7 @@ Future<void> main() async {
         Provider<StudentRepository>.value(value: studentRepository),
         Provider<ReportRepository>.value(value: reportRepository),
         Provider<ParentNoteRepository>.value(value: parentNoteRepository),
+        Provider<WeeklyRecapRepository>.value(value: weeklyRecapRepository),
         Provider<ProgressCalculationService>.value(value: progressService),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
