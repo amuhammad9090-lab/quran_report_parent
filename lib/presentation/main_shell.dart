@@ -5,20 +5,23 @@ import '../core/utils/responsive.dart';
 import '../data/repositories/parent_note_repository.dart';
 import '../data/repositories/report_repository.dart';
 import '../data/repositories/weekly_recap_repository.dart';
+import '../data/services/progress_calculation_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/hafalan_provider.dart';
 import '../providers/parent_note_provider.dart';
 import '../providers/weekly_recap_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/profile/profile_screen.dart';
 
-/// Shell navigasi utama portal orang tua — 3 tab (Dashboard, Riwayat,
-/// Profil). Tab "Hafalan" sengaja DIHAPUS — semua capaian hafalan
-/// (termasuk progress per-juz) sekarang cukup dilihat dari tab Riwayat,
-/// nggak perlu layar terpisah. Sengaja juga TIDAK membawa seluruh
-/// navigation app guru (Laporan, Folder, Statistik, Export, dst) — portal
-/// ini harus terasa ringan, cuma yang relevan buat orang tua.
+/// Shell navigasi utama portal orang tua — 3 tab (Beranda, Perkembangan,
+/// Profil). Tab "Hafalan" sengaja DIHAPUS sebagai layar terpisah — progress
+/// per-juz sekarang tampil sebagai kartu interaktif di Beranda (lihat
+/// [HafalanProvider]) dan detail riwayatnya di tab Perkembangan. Sengaja
+/// juga TIDAK membawa seluruh navigation app guru (Laporan, Folder,
+/// Statistik, Export, dst) — portal ini harus terasa ringan, cuma yang
+/// relevan buat orang tua.
 ///
 /// `NavigationBar` di sini nanti otomatis ambil style dari `AppTheme`
 /// (height 72, indicator radius 16, dll — sudah didefinisikan di
@@ -40,6 +43,23 @@ class MainShell extends StatelessWidget {
           create: (ctx) => DashboardProvider(
             reportRepository: ctx.read<ReportRepository>(),
           )..load(student),
+        ),
+        // <-- BARU: HafalanProvider (progress per-juz, sudah ada sejak
+        // STEP 6 tapi belum pernah di-wire ke UI) — dipasang lewat
+        // ChangeNotifierProxyProvider supaya otomatis re-compute begitu
+        // DashboardProvider.records selesai load, TANPA query Firestore
+        // tambahan (murni agregasi dari records yang sudah di-fetch di
+        // atas). Dipakai kartu "Progress Hafalan" interaktif di Beranda.
+        ChangeNotifierProxyProvider<DashboardProvider, HafalanProvider>(
+          create: (ctx) => HafalanProvider(
+            progressService: ctx.read<ProgressCalculationService>(),
+          ),
+          update: (ctx, dash, hafalan) {
+            final provider = hafalan ??
+                HafalanProvider(progressService: ctx.read<ProgressCalculationService>());
+            if (!dash.isLoading) provider.computeFrom(dash.records);
+            return provider;
+          },
         ),
         // Provider terpisah dari DashboardProvider (yang murni baca) —
         // ini satu-satunya bagian sesi orang tua yang menulis data,
@@ -75,31 +95,54 @@ class _MainShellBody extends StatefulWidget {
 class _MainShellBodyState extends State<_MainShellBody> {
   int _index = 0;
 
-  static const _screens = [
-    DashboardScreen(),
-    HistoryScreen(),
-    ProfileScreen(),
-  ];
-
   static const _destinations = [
-    (icon: Icons.home_rounded, label: 'Dashboard'),
-    (icon: Icons.history_rounded, label: 'Riwayat'),
+    (icon: Icons.home_rounded, label: 'Beranda'),
+    (icon: Icons.trending_up_rounded, label: 'Perkembangan'),
     (icon: Icons.person_rounded, label: 'Profil'),
   ];
 
+  void _goToPerkembangan() => setState(() => _index = 1);
+
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      DashboardScreen(onSeeAllActivity: _goToPerkembangan),
+      const HistoryScreen(),
+      const ProfileScreen(),
+    ];
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= kDesktopBreakpoint;
 
         // Body dibungkus ResponsiveContentWidth supaya di layar lebar
         // (desktop/tablet) konten tetap nyaman dibaca, tidak melebar
-        // penuh sampai tepi layar. Tiap screen (Dashboard/Riwayat/dst)
+        // penuh sampai tepi layar. Tiap screen (Beranda/Perkembangan/dst)
         // sudah bawa Scaffold sendiri (perlu AppBar per layar), jadi
         // dibungkus di sini lewat Builder supaya AppBar tetap full-width
         // tapi body-nya yang dibatasi.
-        final content = _screens[_index];
+        //
+        // Semua tab TETAP mounted (Stack, bukan swap widget) supaya state
+        // tiap tab (scroll position, filter periode di Perkembangan) tidak
+        // hilang waktu pindah-pindah — cuma opacity yang di-crossfade
+        // secara halus, dan IgnorePointer mencegah tab yang sedang
+        // tersembunyi ikut menerima tap.
+        final content = Stack(
+          children: [
+            for (int i = 0; i < screens.length; i++)
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: i != _index,
+                  child: AnimatedOpacity(
+                    opacity: i == _index ? 1 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    child: screens[i],
+                  ),
+                ),
+              ),
+          ],
+        );
 
         if (!isWide) {
           return Scaffold(

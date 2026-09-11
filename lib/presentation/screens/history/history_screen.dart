@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -10,22 +11,50 @@ import '../../../providers/weekly_recap_provider.dart';
 import '../../widgets/misc_widgets.dart';
 import '../../widgets/status_badge.dart';
 
-/// "Riwayat Perkembangan" — daftar laporan berdasarkan tanggal, sesuai
-/// brief. Pakai [DateGroupCard]/[RecordSummaryRow] (file di-share dari
-/// app guru, tidak diubah) supaya visualnya identik dengan halaman
-/// Detail Santri di app guru — bedanya di sini murni tampilan, tidak
-/// ada `onTap` (tidak ada detail/edit, sesuai read-only).
+/// "Perkembangan" — rekap mingguan dari guru + riwayat laporan lengkap
+/// (dikelompokkan per tanggal) + filter periode + detail laporan (tap
+/// satu baris buka bottom sheet). SEMUA filter di sini murni client-side
+/// terhadap [DashboardProvider.records] yang sudah di-fetch SEKALI per
+/// sesi di [MainShell] — filter periode TIDAK memicu query Firestore
+/// baru sama sekali, cukup narrow subset yang sudah ada di memori.
 ///
-/// <-- BARU: section "Rekap Pekanan dari Guru" di paling atas (kartu
+/// Section "Rekap Pekanan dari Guru" di paling atas (kartu
 /// horizontal-scroll) — nampilin rekap MINGGUAN yang guru "Deploy" dari
 /// GenerateRekapPekananScreen (beda dari daftar harian di bawahnya yang
-/// 1 baris = 1 laporan; ini 1 kartu = ringkasan 1 pekan penuh). Sengaja
-/// TETAP di halaman ini (bukan tab baru) — sama alasan kayak tab
-/// "Hafalan" yang dihapus dulu: portal ini harus tetap ringan, dan
-/// "rekap pekanan" secara semantik masih bagian dari "riwayat
-/// perkembangan", bukan fitur berdiri sendiri.
-class HistoryScreen extends StatelessWidget {
+/// 1 baris = 1 laporan; ini 1 kartu = ringkasan 1 pekan penuh).
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+enum _PeriodFilter { semua, pekanIni, bulanIni, tigaBulan }
+
+extension on _PeriodFilter {
+  String get label => switch (this) {
+        _PeriodFilter.semua => 'Semua',
+        _PeriodFilter.pekanIni => 'Pekan Ini',
+        _PeriodFilter.bulanIni => 'Bulan Ini',
+        _PeriodFilter.tigaBulan => '3 Bulan Terakhir',
+      };
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  _PeriodFilter _filter = _PeriodFilter.semua;
+
+  List<SantriRecord> _applyFilter(List<SantriRecord> records) {
+    if (_filter == _PeriodFilter.semua) return records;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final cutoff = switch (_filter) {
+      _PeriodFilter.pekanIni => today.subtract(Duration(days: today.weekday - 1)),
+      _PeriodFilter.bulanIni => DateTime(today.year, today.month, 1),
+      _PeriodFilter.tigaBulan => DateTime(today.year, today.month - 2, 1),
+      _PeriodFilter.semua => DateTime(1970),
+    };
+    return records.where((r) => !r.tanggal.isBefore(cutoff)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +66,7 @@ class HistoryScreen extends StatelessWidget {
 
     if (dash.records.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Riwayat Perkembangan'), centerTitle: false),
+        appBar: AppBar(title: const Text('Perkembangan'), centerTitle: false),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(32),
@@ -51,12 +80,14 @@ class HistoryScreen extends StatelessWidget {
       );
     }
 
+    final filtered = _applyFilter(dash.records);
+
     // records dari DashboardProvider sudah terurut terbaru dulu, dan
     // grouping di bawah TIDAK mengubah urutan itu — cukup mengelompokkan
     // record dengan tanggal (y/m/d) yang sama persis ke 1 DateGroupCard,
     // mengikuti pola app guru.
     final groups = <DateTime, List<SantriRecord>>{};
-    for (final r in dash.records) {
+    for (final r in filtered) {
       final key = DateTime(r.tanggal.year, r.tanggal.month, r.tanggal.day);
       groups.putIfAbsent(key, () => []).add(r);
     }
@@ -65,7 +96,7 @@ class HistoryScreen extends StatelessWidget {
     final weeklyRecaps = context.watch<WeeklyRecapProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Riwayat Perkembangan'), centerTitle: false),
+      appBar: AppBar(title: const Text('Perkembangan'), centerTitle: false),
       body: SafeArea(
         child: ResponsiveContentWidth(
           child: Column(
@@ -78,32 +109,147 @@ class HistoryScreen extends StatelessWidget {
               // fokus utama halaman.
               if (weeklyRecaps.isLoading || weeklyRecaps.recaps.isNotEmpty)
                 _WeeklyRecapSection(provider: weeklyRecaps),
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
-                  itemCount: sortedDates.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) {
-                    final date = sortedDates[i];
-                    final recordsOnDate = groups[date]!;
-                    return DateGroupCard(
-                      date: date,
-                      rows: [
-                        for (final r in recordsOnDate)
-                          RecordSummaryRow(
-                            statusIcon: r.status.icon,
-                            statusColor: AppColors.statusOn(context, r.status),
-                            statusLabel: r.status.label,
-                            capaianText: r.capaianText,
-                            keteranganChip: KeteranganChip(keterangan: r.keterangan, compact: true),
-                          ),
-                      ],
-                    );
-                  },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
+                child: SizedBox(
+                  height: 34,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _PeriodFilter.values.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final f = _PeriodFilter.values[i];
+                      final selected = f == _filter;
+                      return ChoiceChip(
+                        label: Text(f.label),
+                        selected: selected,
+                        onSelected: (_) => setState(() => _filter = f),
+                        labelStyle: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: selected
+                              ? Theme.of(context).colorScheme.onPrimaryContainer
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      );
+                    },
+                  ),
                 ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: EmptyState(
+                            icon: Icons.filter_alt_off_rounded,
+                            title: 'Tidak ada laporan',
+                            subtitle: 'Belum ada laporan pada periode ini. Coba pilih periode lain.',
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(18, 6, 18, 18),
+                        itemCount: sortedDates.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, i) {
+                          final date = sortedDates[i];
+                          final recordsOnDate = groups[date]!;
+                          return DateGroupCard(
+                            date: date,
+                            rows: [
+                              for (final r in recordsOnDate)
+                                RecordSummaryRow(
+                                  statusIcon: r.status.icon,
+                                  statusColor: AppColors.statusOn(context, r.status),
+                                  statusLabel: r.status.label,
+                                  capaianText: r.capaianText,
+                                  keteranganChip: KeteranganChip(keterangan: r.keterangan, compact: true),
+                                  onTap: () => _showRecordDetail(context, r),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showRecordDetail(BuildContext context, SantriRecord record) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => _RecordDetailSheet(record: record),
+    );
+  }
+}
+
+/// Detail 1 laporan — dibuka dari tap [RecordSummaryRow] di daftar
+/// riwayat. Murni menampilkan field [SantriRecord] yang sudah di-load,
+/// tidak ada query tambahan.
+class _RecordDetailSheet extends StatelessWidget {
+  final SantriRecord record;
+  const _RecordDetailSheet({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            Row(
+              children: [
+                StatusBadge(status: record.status),
+                const Spacer(),
+                KeteranganChip(keterangan: record.keterangan, compact: true),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(record.tanggal),
+              style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 16),
+            Text('Capaian', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Text(record.capaianText, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, height: 1.4)),
+            if (record.totalBaris != null && record.totalBaris! > 0) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.menu_book_rounded, size: 15, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${record.totalBaris} baris tercatat',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ],
+            if ((record.catatan ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text('Catatan Guru', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 4),
+              Text(record.catatan!.trim(), style: const TextStyle(fontSize: 13.5, height: 1.5)),
+            ],
+          ],
         ),
       ),
     );

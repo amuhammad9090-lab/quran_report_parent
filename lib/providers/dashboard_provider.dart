@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../data/models/enums.dart';
 import '../data/models/santri_record.dart';
@@ -140,4 +140,108 @@ class DashboardProvider extends ChangeNotifier {
     if (recordsThisWeek.isEmpty) return null;
     return recordsThisWeek.map((r) => r.tanggal).reduce((a, b) => a.isAfter(b) ? a : b);
   }
+
+  // ---------------------------------------------------------------------
+  // Perbandingan pekan ini vs pekan lalu — SEMUA dari [records] yang
+  // sudah ter-load sekali per sesi (tidak ada query tambahan). Dipakai
+  // untuk kartu "dibanding pekan lalu" di Beranda.
+  // ---------------------------------------------------------------------
+
+  DateTime get _prevWeekStart => _weekStart.subtract(const Duration(days: 7));
+  DateTime get _prevWeekEnd => _weekStart.subtract(const Duration(days: 1));
+
+  bool _isInPreviousWeek(DateTime tanggal) {
+    final d = DateTime(tanggal.year, tanggal.month, tanggal.day);
+    return !d.isBefore(_prevWeekStart) && !d.isAfter(_prevWeekEnd);
+  }
+
+  /// Subset [records] pekan SEBELUM pekan berjalan.
+  List<SantriRecord> get recordsPreviousWeek =>
+      records.where((r) => _isInPreviousWeek(r.tanggal)).toList();
+
+  int get barisTercapaiPekanLalu =>
+      recordsPreviousWeek.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
+
+  /// Selisih baris pekan ini vs pekan lalu. Null kalau pekan lalu belum
+  /// ada laporan sama sekali (dibandingkan ke 0 tidak adil/menyesatkan —
+  /// bisa jadi santrinya baru mulai dilaporkan pekan ini).
+  int? get barisDeltaVsPekanLalu {
+    if (recordsPreviousWeek.isEmpty) return null;
+    return barisTercapaiPekanIni - barisTercapaiPekanLalu;
+  }
+
+  // ---------------------------------------------------------------------
+  // Insight Minggu Ini — kalimat pendek yang disimpulkan LANGSUNG dari
+  // data existing di atas (tidak ada data yang dikarang). Maksimal 3
+  // insight, diurutkan dari yang paling relevan/actionable.
+  // ---------------------------------------------------------------------
+
+  List<DashboardInsight> get insights {
+    if (records.isEmpty) return const [];
+    final list = <DashboardInsight>[];
+
+    final delta = barisDeltaVsPekanLalu;
+    if (delta != null && delta != 0) {
+      list.add(DashboardInsight(
+        icon: delta > 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+        positive: delta > 0,
+        text: delta > 0
+            ? 'Naik $delta baris dibanding pekan lalu — pertahankan ritmenya.'
+            : 'Turun ${delta.abs()} baris dibanding pekan lalu. Ajak ananda murojaah lebih rutin.',
+      ));
+    } else if (delta == null && barisTercapaiPekanIni > 0) {
+      list.add(DashboardInsight(
+        icon: Icons.auto_awesome_rounded,
+        positive: true,
+        text: 'Pekan pertama dengan laporan — $barisTercapaiPekanIni baris tercatat.',
+      ));
+    }
+
+    final thisWeekAlpaIzin = recordsThisWeek
+        .where((r) =>
+            r.keterangan != Keterangan.hadir && !r.keterangan.isSanksiTanpaSetoran)
+        .length;
+    if (thisWeekAlpaIzin > 0) {
+      list.add(DashboardInsight(
+        icon: Icons.event_busy_rounded,
+        positive: false,
+        text: thisWeekAlpaIzin == 1
+            ? 'Ada 1 pertemuan pekan ini dengan status izin/tidak hadir.'
+            : 'Ada $thisWeekAlpaIzin pertemuan pekan ini dengan status izin/tidak hadir.',
+      ));
+    }
+
+    final rekapTerakhir = tanggalRekapTerakhirPekanIni;
+    if (rekapTerakhir == null && records.isNotEmpty) {
+      final lastAny = records.first.tanggal;
+      final days = DateTime.now().difference(lastAny).inDays;
+      if (days >= 7) {
+        list.add(DashboardInsight(
+          icon: Icons.info_outline_rounded,
+          positive: false,
+          text: 'Belum ada laporan baru dalam $days hari terakhir.',
+        ));
+      }
+    }
+
+    if (list.isEmpty && kehadiranRatio >= 0.9 && records.length >= 3) {
+      list.add(DashboardInsight(
+        icon: Icons.emoji_events_rounded,
+        positive: true,
+        text: 'Kehadiran ananda sangat konsisten, ${(kehadiranRatio * 100).toStringAsFixed(0)}% sepanjang riwayat.',
+      ));
+    }
+
+    return list.take(3).toList();
+  }
+}
+
+/// Satu baris insight yang tampil di kartu "Insight Minggu Ini" —
+/// [positive] menentukan warna (hijau/amber), bukan makna wajib
+/// baik/buruk (mis. "izin sakit" tetap netral-informatif).
+class DashboardInsight {
+  final IconData icon;
+  final String text;
+  final bool positive;
+  const DashboardInsight({required this.icon, required this.text, required this.positive});
 }
