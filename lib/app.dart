@@ -59,7 +59,13 @@ class _AuthGateState extends State<_AuthGate> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => context.read<AuthProvider>().restoreSession());
+    // Baca AuthProvider SEKARANG (context masih pasti valid di initState),
+    // lalu simpan referensinya saja — microtask di bawah cuma pakai
+    // `auth`, bukan `context`, jadi tidak ada BuildContext yang dipakai
+    // lewat async gap (initState tidak async, tapi Future.microtask()
+    // tetap menunda closure-nya ke microtask berikutnya).
+    final auth = context.read<AuthProvider>();
+    Future.microtask(() => auth.restoreSession());
   }
 
   @override
@@ -68,8 +74,7 @@ class _AuthGateState extends State<_AuthGate> {
     if (auth.status == AuthStatus.loggedIn) {
       return const MainShell();
     }
-    if (auth.status == AuthStatus.unknown ||
-        auth.status == AuthStatus.loading) {
+    if (auth.status == AuthStatus.unknown || auth.status == AuthStatus.loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return const LoginScreen();
