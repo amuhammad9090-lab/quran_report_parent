@@ -31,7 +31,6 @@ Future<void> main() async {
   final santriAccountRepository = FirestoreSantriAccountRepository(schoolId: kSchoolId);
   final reportRepository = FirestoreReportRepository(schoolId: kSchoolId);
   final parentNoteRepository = FirestoreParentNoteRepository(schoolId: kSchoolId);
-  // <-- BARU: rekap pekanan yang di-deploy guru (lihat WeeklyRecap).
   final weeklyRecapRepository = FirestoreWeeklyRecapRepository(schoolId: kSchoolId);
   final progressService = ProgressCalculationService(engine: QuranEngineService.instance);
 
@@ -49,9 +48,6 @@ Future<void> main() async {
             studentRepository: studentRepository,
           ),
         ),
-        // Preferensi tampilan (Terang/Gelap/Sistem) — di-load di atas
-        // _AuthGate supaya berlaku juga di LoginScreen (sebelum login),
-        // bukan cuma setelah masuk MainShell.
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const ParentWebApp(),

@@ -66,7 +66,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     if (dash.records.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Perkembangan'), centerTitle: false),
+        appBar: AppBar(
+          title: const Text('Perkembangan'),
+          centerTitle: false,
+          toolbarHeight: 68,
+          titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+              ),
+        ),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(32),
@@ -96,7 +104,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final weeklyRecaps = context.watch<WeeklyRecapProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perkembangan'), centerTitle: false),
+      appBar: AppBar(
+        title: const Text('Perkembangan'),
+        centerTitle: false,
+        toolbarHeight: 68,
+        // Override ukuran default tema (headlineSmall ~24) — khusus di
+        // sini aja (bukan appBarTheme global) supaya AppBar Beranda*/
+        // Profil nggak ikut membesar, cuma "Perkembangan" sesuai
+        // permintaan.
+        titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
       body: SafeArea(
         child: ResponsiveContentWidth(
           child: Column(
@@ -124,12 +144,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         label: Text(f.label),
                         selected: selected,
                         onSelected: (_) => setState(() => _filter = f),
+                        showCheckmark: false,
+                        selectedColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: Theme.of(context).chipTheme.backgroundColor,
                         labelStyle: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: selected
-                              ? Theme.of(context).colorScheme.onPrimaryContainer
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                          // Sebelumnya pakai primaryContainer/onPrimaryContainer
+                          // untuk state terpilih — di beberapa kondisi kontrasnya
+                          // ambigu (teks nyaris tak kebaca, cuma checkmark yang
+                          // kelihatan). Diganti ke primary (solid, lebih pekat)
+                          // + putih, kombinasi yang pasti kontras di light MAUPUN
+                          // dark mode.
+                          color: selected ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       );
                     },

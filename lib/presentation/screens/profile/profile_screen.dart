@@ -26,7 +26,15 @@ class ProfileScreen extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil'), centerTitle: false),
+      appBar: AppBar(
+        title: const Text('Profil'),
+        centerTitle: false,
+        toolbarHeight: 68,
+        titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
       body: SafeArea(
         child: ResponsiveContentWidth(
           maxWidth: 560,
