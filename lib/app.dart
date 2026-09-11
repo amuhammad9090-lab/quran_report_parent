@@ -68,7 +68,8 @@ class _AuthGateState extends State<_AuthGate> {
     if (auth.status == AuthStatus.loggedIn) {
       return const MainShell();
     }
-    if (auth.status == AuthStatus.unknown || auth.status == AuthStatus.loading) {
+    if (auth.status == AuthStatus.unknown ||
+        auth.status == AuthStatus.loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return const LoginScreen();

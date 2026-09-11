@@ -82,7 +82,8 @@ class _DashboardContent extends StatelessWidget {
             child: Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: EmptyState(
+                // ignore: unnecessary_const
+                child: const EmptyState(
                   icon: Icons.wifi_off_rounded,
                   title: 'Gagal memuat data',
                   subtitle: 'Periksa koneksi internet, lalu coba lagi.',
@@ -100,9 +101,16 @@ class _DashboardContent extends StatelessWidget {
     // disusun 1 kolom (mobile) atau 2 kolom (desktop) di bawah.
     final hero = _DashboardHero(student: student, dash: dash);
     final quickStats = noRecords ? null : _QuickStatsRow(dash: dash);
-    final progress = noRecords ? const _NoRecordsCard() : _ProgressHafalanSection(dash: dash, hafalan: hafalan);
-    final insight = (!noRecords && dash.insights.isNotEmpty) ? _InsightSection(insights: dash.insights) : null;
-    final timeline = noRecords ? null : _ActivityTimelineSection(dash: dash, onSeeAllActivity: onSeeAllActivity);
+    final progress = noRecords
+        ? const _NoRecordsCard()
+        : _ProgressHafalanSection(dash: dash, hafalan: hafalan);
+    final insight = (!noRecords && dash.insights.isNotEmpty)
+        ? _InsightSection(insights: dash.insights)
+        : null;
+    final timeline = noRecords
+        ? null
+        : _ActivityTimelineSection(
+            dash: dash, onSeeAllActivity: onSeeAllActivity);
     final catatan = _CatatanGuruSection(dash: dash);
 
     return CustomScrollView(
@@ -113,7 +121,8 @@ class _DashboardContent extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 var i = 0;
-                Widget staggered(Widget child) => _StaggeredEntrance(index: i++, child: child);
+                Widget staggered(Widget child) =>
+                    _StaggeredEntrance(index: i++, child: child);
 
                 // Di layar sempit (mobile/tablet potret): 1 kolom, urutan
                 // sesuai brief (progress -> insight -> aktivitas -> catatan).
@@ -123,10 +132,19 @@ class _DashboardContent extends StatelessWidget {
                     children: [
                       staggered(hero),
                       const SizedBox(height: 22),
-                      if (quickStats != null) ...[staggered(quickStats), const SizedBox(height: 22)],
+                      if (quickStats != null) ...[
+                        staggered(quickStats),
+                        const SizedBox(height: 22)
+                      ],
                       staggered(progress),
-                      if (insight != null) ...[const SizedBox(height: 22), staggered(insight)],
-                      if (timeline != null) ...[const SizedBox(height: 22), staggered(timeline)],
+                      if (insight != null) ...[
+                        const SizedBox(height: 22),
+                        staggered(insight)
+                      ],
+                      if (timeline != null) ...[
+                        const SizedBox(height: 22),
+                        staggered(timeline)
+                      ],
                       const SizedBox(height: 22),
                       staggered(catatan),
                     ],
@@ -143,7 +161,10 @@ class _DashboardContent extends StatelessWidget {
                   children: [
                     staggered(hero),
                     const SizedBox(height: 22),
-                    if (quickStats != null) ...[staggered(quickStats), const SizedBox(height: 22)],
+                    if (quickStats != null) ...[
+                      staggered(quickStats),
+                      const SizedBox(height: 22)
+                    ],
                     IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +175,10 @@ class _DashboardContent extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 staggered(progress),
-                                if (timeline != null) ...[const SizedBox(height: 22), staggered(timeline)],
+                                if (timeline != null) ...[
+                                  const SizedBox(height: 22),
+                                  staggered(timeline)
+                                ],
                               ],
                             ),
                           ),
@@ -164,7 +188,10 @@ class _DashboardContent extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (insight != null) ...[staggered(insight), const SizedBox(height: 22)],
+                                if (insight != null) ...[
+                                  staggered(insight),
+                                  const SizedBox(height: 22)
+                                ],
                                 staggered(catatan),
                               ],
                             ),
@@ -235,19 +262,23 @@ class _DashboardSkeleton extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       children: const [
-        _PulsingBox(height: 168, borderRadius: BorderRadius.all(Radius.circular(24))),
+        _PulsingBox(
+            height: 168, borderRadius: BorderRadius.all(Radius.circular(24))),
         SizedBox(height: 22),
         _PulsingBox(height: 18, width: 140),
         SizedBox(height: 10),
-        _PulsingBox(height: 150, borderRadius: BorderRadius.all(Radius.circular(20))),
+        _PulsingBox(
+            height: 150, borderRadius: BorderRadius.all(Radius.circular(20))),
         SizedBox(height: 22),
         _PulsingBox(height: 18, width: 160),
         SizedBox(height: 10),
-        _PulsingBox(height: 88, borderRadius: BorderRadius.all(Radius.circular(20))),
+        _PulsingBox(
+            height: 88, borderRadius: BorderRadius.all(Radius.circular(20))),
         SizedBox(height: 22),
         _PulsingBox(height: 18, width: 150),
         SizedBox(height: 10),
-        _PulsingBox(height: 120, borderRadius: BorderRadius.all(Radius.circular(20))),
+        _PulsingBox(
+            height: 120, borderRadius: BorderRadius.all(Radius.circular(20))),
       ],
     );
   }
@@ -267,13 +298,15 @@ class _PulsingBox extends StatefulWidget {
   State<_PulsingBox> createState() => _PulsingBoxState();
 }
 
-class _PulsingBoxState extends State<_PulsingBox> with SingleTickerProviderStateMixin {
+class _PulsingBoxState extends State<_PulsingBox>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100))
       ..repeat(reverse: true);
   }
 
@@ -324,26 +357,31 @@ class _DashboardHero extends StatelessWidget {
     final parts = student.nama.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     final baris = dash.barisTercapaiPekanIni;
     final target = weeklyTargetBarisForHalaqoh(student.halaqoh);
-    final ratio = (target != null && target > 0) ? (baris / target).clamp(0.0, 1.0) : null;
+    final ratio = (target != null && target > 0)
+        ? (baris / target).clamp(0.0, 1.0)
+        : null;
     final delta = dash.barisDeltaVsPekanLalu;
 
     return WelcomeHeroCard(
       eyebrow: "Assalamu'alaikum 👋",
       title: student.nama,
-      subtitle: '$_greeting • Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
+      subtitle:
+          '$_greeting • Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: Colors.white.withValues(alpha: 0.18),
         child: Text(
           _initials,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
         ),
       ),
       weeklyRecap: dash.records.isEmpty
@@ -376,7 +414,10 @@ class _DashboardHero extends StatelessWidget {
                   children: [
                     Text(
                       '$baris',
-                      style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800),
                     ),
                     Text(
                       target != null ? ' / $target baris' : ' baris tercapai',
@@ -431,14 +472,19 @@ class _DeltaPill extends StatelessWidget {
           Icon(
             flat
                 ? Icons.remove_rounded
-                : (positive ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded),
+                : (positive
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded),
             size: 11,
             color: Colors.white,
           ),
           const SizedBox(width: 2),
           Text(
             flat ? 'sama' : '${delta.abs()}',
-            style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -457,7 +503,8 @@ class _NoRecordsCard extends StatelessWidget {
         child: EmptyState(
           icon: Icons.auto_stories_rounded,
           title: 'Belum ada laporan',
-          subtitle: 'Laporan perkembangan akan muncul di sini setelah guru pembimbing menginput setoran pertama.',
+          subtitle:
+              'Laporan perkembangan akan muncul di sini setelah guru pembimbing menginput setoran pertama.',
         ),
       ),
     );
@@ -532,20 +579,28 @@ class _QuickStatChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Theme.of(context).dividerTheme.color ?? Colors.transparent),
+            border: Border.all(
+                color:
+                    Theme.of(context).dividerTheme.color ?? Colors.transparent),
           ),
           child: Row(
             children: [
-              SoftIconBox(icon: icon, color: color, size: 16, padding: 8, radius: 10),
+              SoftIconBox(
+                  icon: icon, color: color, size: 16, padding: 8, radius: 10),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text(value,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
                     Text(
                       label,
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurfaceVariant),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -553,7 +608,9 @@ class _QuickStatChip extends StatelessWidget {
                 ),
               ),
               if (onTap != null)
-                Icon(Icons.chevron_right_rounded, size: 16, color: cs.onSurfaceVariant.withValues(alpha: 0.6)),
+                Icon(Icons.chevron_right_rounded,
+                    size: 16,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.6)),
             ],
           ),
         ),
@@ -585,7 +642,10 @@ void _showKehadiranDetail(BuildContext context, DashboardProvider dash) {
             children: [
               Text(
                 'Rincian Kehadiran',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: cs.onSurface),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface),
               ),
               const SizedBox(height: 4),
               Text(
@@ -603,7 +663,8 @@ void _showKehadiranDetail(BuildContext context, DashboardProvider dash) {
                         const Spacer(),
                         Text(
                           '${dist[k]}x',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, color: cs.onSurface),
                         ),
                       ],
                     ),
@@ -642,7 +703,8 @@ class _ProgressHafalanSection extends StatelessWidget {
 
   SantriRecord? get _latestTahsinRecord {
     for (final r in dash.records) {
-      if (r.status == HafalanStatus.tahsin || r.status == HafalanStatus.tahsinTahfizh) {
+      if (r.status == HafalanStatus.tahsin ||
+          r.status == HafalanStatus.tahsinTahfizh) {
         return r;
       }
     }
@@ -654,7 +716,9 @@ class _ProgressHafalanSection extends StatelessWidget {
     final primary = hafalan.primaryJuz;
     final segment = _latestTahfizhSegment;
     final tahsinRecord = _latestTahsinRecord;
-    final otherJuz = hafalan.juzProgress.where((j) => j.juz != primary?.juz).toList()
+    final otherJuz = hafalan.juzProgress
+        .where((j) => j.juz != primary?.juz)
+        .toList()
       ..sort((a, b) => b.juz.compareTo(a.juz));
 
     if (primary == null && tahsinRecord == null) return const SizedBox.shrink();
@@ -678,7 +742,8 @@ class _ProgressHafalanSection extends StatelessWidget {
                       children: [
                         Text(
                           'Juz ${primary.juz}',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 16),
                         ),
                         if (segment != null) ...[
                           const SizedBox(height: 3),
@@ -686,7 +751,9 @@ class _ProgressHafalanSection extends StatelessWidget {
                             segment.partText,
                             style: TextStyle(
                               fontSize: 12.5,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -747,7 +814,8 @@ class _JuzProgressRing extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: progress.datasetAvailable ? progress.ratio : 0),
+            tween: Tween(
+                begin: 0, end: progress.datasetAvailable ? progress.ratio : 0),
             duration: const Duration(milliseconds: 750),
             curve: Curves.easeOutCubic,
             builder: (context, value, _) => SizedBox(
@@ -763,7 +831,8 @@ class _JuzProgressRing extends StatelessWidget {
           ),
           Text(
             progress.datasetAvailable ? '$percent%' : '-',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: cs.primary),
+            style: TextStyle(
+                fontWeight: FontWeight.w800, fontSize: 15, color: cs.primary),
           ),
         ],
       ),
@@ -790,7 +859,9 @@ class _JuzChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Juz ${progress.juz}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+                Text('Juz ${progress.juz}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 17)),
                 const SizedBox(height: 10),
                 if (progress.datasetAvailable) ...[
                   ClipRRect(
@@ -836,7 +907,11 @@ class _JuzChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Juz ${progress.juz}', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: cs.primary)),
+              Text('Juz ${progress.juz}',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      color: cs.primary)),
               const SizedBox(height: 4),
               SizedBox(
                 width: 64,
@@ -866,7 +941,9 @@ class _TahsinCard extends StatelessWidget {
     final mode = record.tahsinMode ?? TahsinMode.wafa;
     if (mode == TahsinMode.tilawah) {
       final segs = record.tilawahSegmentsEffective;
-      return segs.isEmpty ? 'Tilawah' : 'Tilawah • ${segs.map((s) => s.partText).join(' + ')}';
+      return segs.isEmpty
+          ? 'Tilawah'
+          : 'Tilawah • ${segs.map((s) => s.partText).join(' + ')}';
     }
     return '${record.wafaLevel?.label ?? '-'} • Halaman ${record.halamanWafa ?? '-'}';
   }
@@ -879,15 +956,23 @@ class _TahsinCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            SoftIconBox(icon: Icons.menu_book_rounded, color: AppColors.statusOn(context, HafalanStatus.tahsin)),
+            SoftIconBox(
+                icon: Icons.menu_book_rounded,
+                color: AppColors.statusOn(context, HafalanStatus.tahsin)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tahsin Terkini', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+                  Text('Tahsin Terkini',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurfaceVariant)),
                   const SizedBox(height: 2),
-                  Text(_label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                  Text(_label,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13.5)),
                 ],
               ),
             ),
@@ -921,15 +1006,25 @@ class _InsightSection extends StatelessWidget {
                     dense: true,
                     leading: SoftIconBox(
                       icon: insight.icon,
-                      color: insight.positive ? AppColors.greenOn(context) : AppColors.tahsinOn(context),
+                      color: insight.positive
+                          ? AppColors.greenOn(context)
+                          : AppColors.tahsinOn(context),
                       size: 17,
                     ),
                     title: Text(
                       insight.text,
-                      style: const TextStyle(fontSize: 13, height: 1.35, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (insight != insights.last) Divider(height: 1, indent: 16, endIndent: 16, color: Theme.of(context).dividerTheme.color),
+                  if (insight != insights.last)
+                    Divider(
+                        height: 1,
+                        indent: 16,
+                        endIndent: 16,
+                        color: Theme.of(context).dividerTheme.color),
                 ],
               ],
             ),
@@ -948,7 +1043,8 @@ class _InsightSection extends StatelessWidget {
 class _ActivityTimelineSection extends StatelessWidget {
   final DashboardProvider dash;
   final VoidCallback onSeeAllActivity;
-  const _ActivityTimelineSection({required this.dash, required this.onSeeAllActivity});
+  const _ActivityTimelineSection(
+      {required this.dash, required this.onSeeAllActivity});
 
   @override
   Widget build(BuildContext context) {
@@ -960,8 +1056,10 @@ class _ActivityTimelineSection extends StatelessWidget {
           'Aktivitas Terbaru',
           trailing: TextButton(
             onPressed: onSeeAllActivity,
-            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-            child: const Text('Lihat Semua', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            style: TextButton.styleFrom(
+                padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+            child: const Text('Lihat Semua',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
           ),
         ),
         Card(
@@ -971,7 +1069,8 @@ class _ActivityTimelineSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (int i = 0; i < recent.length; i++)
-                  _TimelineRow(record: recent[i], isLast: i == recent.length - 1),
+                  _TimelineRow(
+                      record: recent[i], isLast: i == recent.length - 1),
               ],
             ),
           ),
@@ -1002,9 +1101,12 @@ class _TimelineRow extends StatelessWidget {
                   width: 10,
                   height: 10,
                   margin: const EdgeInsets.only(top: 4),
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+                  decoration:
+                      BoxDecoration(shape: BoxShape.circle, color: color),
                 ),
-                if (!isLast) Expanded(child: Container(width: 1.6, color: cs.outlineVariant)),
+                if (!isLast)
+                  Expanded(
+                      child: Container(width: 1.6, color: cs.outlineVariant)),
               ],
             ),
             const SizedBox(width: 12),
@@ -1018,7 +1120,10 @@ class _TimelineRow extends StatelessWidget {
                       children: [
                         Text(
                           DateFormat('d MMM', 'id_ID').format(record.tanggal),
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurfaceVariant),
                         ),
                         const SizedBox(width: 8),
                         StatusBadge(status: record.status),
@@ -1027,12 +1132,14 @@ class _TimelineRow extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       record.capaianText,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13.5),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 5),
-                    KeteranganChip(keterangan: record.keterangan, compact: true),
+                    KeteranganChip(
+                        keterangan: record.keterangan, compact: true),
                   ],
                 ),
               ),
@@ -1078,12 +1185,16 @@ class _CatatanGuruSection extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        hasCatatan ? catatan : 'Belum ada catatan dari guru pembimbing.',
+                        hasCatatan
+                            ? catatan
+                            : 'Belum ada catatan dari guru pembimbing.',
                         style: TextStyle(
                           fontSize: 13.5,
                           height: 1.5,
-                          fontWeight: hasCatatan ? FontWeight.w500 : FontWeight.w400,
-                          color: hasCatatan ? cs.onSurface : cs.onSurfaceVariant,
+                          fontWeight:
+                              hasCatatan ? FontWeight.w500 : FontWeight.w400,
+                          color:
+                              hasCatatan ? cs.onSurface : cs.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -1093,9 +1204,11 @@ class _CatatanGuruSection extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.tonalIcon(
-                    onPressed: () => _openReplySheet(context, notes, dash.latest),
+                    onPressed: () =>
+                        _openReplySheet(context, notes, dash.latest),
                     icon: const Icon(Icons.reply_rounded, size: 17),
-                    label: Text(hasCatatan ? 'Balas Catatan' : 'Kirim Catatan ke Guru'),
+                    label: Text(
+                        hasCatatan ? 'Balas Catatan' : 'Kirim Catatan ke Guru'),
                   ),
                 ),
                 if (notes.recent.isNotEmpty) ...[
@@ -1104,12 +1217,17 @@ class _CatatanGuruSection extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'RIWAYAT TERKIRIM',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant, letterSpacing: 0.3),
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurfaceVariant,
+                        letterSpacing: 0.3),
                   ),
                   const SizedBox(height: 10),
                   for (final note in notes.recent.take(3)) ...[
                     _SentNoteRow(note: note),
-                    if (note != notes.recent.take(3).last) const SizedBox(height: 12),
+                    if (note != notes.recent.take(3).last)
+                      const SizedBox(height: 12),
                   ],
                 ],
               ],
@@ -1120,11 +1238,13 @@ class _CatatanGuruSection extends StatelessWidget {
     );
   }
 
-  void _openReplySheet(BuildContext context, ParentNoteProvider notes, SantriRecord? latestRecord) {
+  void _openReplySheet(BuildContext context, ParentNoteProvider notes,
+      SantriRecord? latestRecord) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _ReplyComposerSheet(latestRecord: latestRecord),
     );
   }
@@ -1164,7 +1284,8 @@ class _ReplyComposerSheetState extends State<_ReplyComposerSheet> {
     final notes = context.watch<ParentNoteProvider>();
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -1177,10 +1298,13 @@ class _ReplyComposerSheetState extends State<_ReplyComposerSheet> {
                   width: 40,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: cs.outlineVariant, borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(
+                      color: cs.outlineVariant,
+                      borderRadius: BorderRadius.circular(4)),
                 ),
               ),
-              const Text('Balas ke Guru Pembimbing', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const Text('Balas ke Guru Pembimbing',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 4),
               Text(
                 'Catatan akan langsung muncul sebagai notifikasi di aplikasi guru.',
@@ -1195,11 +1319,14 @@ class _ReplyComposerSheetState extends State<_ReplyComposerSheet> {
                 maxLength: 500,
                 enabled: !notes.isSending,
                 decoration: InputDecoration(
-                  hintText: 'Contoh: Baik ustadz, insyaAllah akan kami bantu murojaah di rumah.',
+                  hintText:
+                      'Contoh: Baik ustadz, insyaAllah akan kami bantu murojaah di rumah.',
                   filled: true,
                   fillColor: Theme.of(context).inputDecorationTheme.fillColor,
                   contentPadding: const EdgeInsets.all(14),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1211,7 +1338,8 @@ class _ReplyComposerSheetState extends State<_ReplyComposerSheet> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.send_rounded, size: 17),
                   label: Text(notes.isSending ? 'Mengirim…' : 'Kirim Balasan'),
@@ -1257,7 +1385,8 @@ class _SentNoteRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 [
-                  if (createdAt != null) DateFormat('d MMM, HH:mm', 'id_ID').format(createdAt),
+                  if (createdAt != null)
+                    DateFormat('d MMM, HH:mm', 'id_ID').format(createdAt),
                   isRead ? 'Sudah dibaca guru' : 'Terkirim',
                 ].join(' • '),
                 style: TextStyle(fontSize: 10.5, color: cs.onSurfaceVariant),
