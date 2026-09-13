@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- WAJIB ada di manifest UTAMA (bukan cuma debug/profile) — app ini
+         butuh internet buat Firebase Auth + Firestore. Sebelumnya cuma
+         ada di src/debug & src/profile, jadi build --release (yang
+         dipakai `flutter build apk`) bakal KEHILANGAN permission ini dan
+         app-nya nggak bisa connect ke Firebase sama sekali. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="quran_report_parent"
+        android:label="Portal Orang Tua"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

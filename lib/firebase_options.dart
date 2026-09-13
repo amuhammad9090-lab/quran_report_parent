@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDs1M0fxMZLh0hL2sLXsSicgHzohHbe344',
-    appId: '1:110737865436:android:663df9f99fffbea4db9219',
+    appId: '1:110737865436:android:6ee8de1d6d19120adb9219',
     messagingSenderId: '110737865436',
     projectId: 'quran-reportweb',
     storageBucket: 'quran-reportweb.firebasestorage.app',
