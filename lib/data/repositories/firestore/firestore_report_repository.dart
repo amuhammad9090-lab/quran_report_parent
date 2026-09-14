@@ -62,4 +62,23 @@ class FirestoreReportRepository implements ReportRepository {
 
     return snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList();
   }
+
+  @override
+  Stream<List<SantriRecord>> watchRecordsForStudent(Student student) {
+    // Query FILTER-nya sama persis dengan getRecordsForStudent di atas
+    // (kelas+halaqoh+namaAnak exact match di level Firestore) — cuma
+    // `.snapshots()` dipakai sebagai ganti `.get()` sekali, jadi listener
+    // ini otomatis emit ulang setiap kali ada dokumen yang cocok
+    // ditambah/diubah/dihapus. `includeMetadataChanges: false` (default)
+    // supaya tidak emit dua kali untuk 1 perubahan yang sama (sekali dari
+    // cache lokal, sekali konfirmasi server) — cukup 1 emit begitu server
+    // konfirmasi.
+    return _col
+        .where('kelas', isEqualTo: student.kelas)
+        .where('halaqoh', isEqualTo: student.halaqoh)
+        .where('namaAnak', isEqualTo: student.nama)
+        .orderBy('tanggal', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList());
+  }
 }

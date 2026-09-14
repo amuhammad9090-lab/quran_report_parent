@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/models/enums.dart';
@@ -21,22 +23,49 @@ class DashboardProvider extends ChangeNotifier {
   String? error;
   List<SantriRecord> records = [];
 
-  Future<void> load(Student student) async {
+  StreamSubscription<List<SantriRecord>>? _subscription;
+
+  /// Mulai LISTEN live ke laporan [student] (bukan fetch sekali lagi) —
+  /// return Future yang selesai begitu snapshot PERTAMA datang (atau
+  /// gagal), supaya pemanggil yang masih await pola lama tetap jalan
+  /// normal. Setelah itu, listener tetap aktif di background: begitu
+  /// guru submit/edit laporan baru, [records] ke-update sendiri dan
+  /// [notifyListeners] dipanggil lagi — makanya "Catatan Guru", progress
+  /// hafalan, insight, dst di Beranda otomatis real-time tanpa orang tua
+  /// perlu refresh/buka-tutup app.
+  Future<void> load(Student student) {
     isLoading = true;
     error = null;
     notifyListeners();
-    try {
-      records = await reportRepository.getRecordsForStudent(student);
-    } catch (e, st) {
-      // debugPrint biar tetap kelihatan jelas di console browser (F12),
-      // gampang dibedain dari noise log Firebase yang lain.
-      debugPrint('DashboardProvider.load GAGAL: $e\n$st');
-      error = e.toString();
-      records = [];
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+
+    final completer = Completer<void>();
+    _subscription?.cancel();
+    _subscription = reportRepository.watchRecordsForStudent(student).listen(
+      (data) {
+        records = data;
+        isLoading = false;
+        error = null;
+        notifyListeners();
+        if (!completer.isCompleted) completer.complete();
+      },
+      onError: (Object e, StackTrace st) {
+        // debugPrint biar tetap kelihatan jelas di console browser (F12),
+        // gampang dibedain dari noise log Firebase yang lain.
+        debugPrint('DashboardProvider.load GAGAL: $e\n$st');
+        error = e.toString();
+        records = [];
+        isLoading = false;
+        notifyListeners();
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+    return completer.future;
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   /// Laporan paling baru (records sudah terurut terbaru dulu dari
@@ -46,9 +75,14 @@ class DashboardProvider extends ChangeNotifier {
   /// Catatan guru dari laporan terakhir yang punya catatan (bukan cuma
   /// laporan paling baru — kalau laporan terakhir kebetulan tidak diisi
   /// catatan, ambil catatan terbaru yang tersedia).
-  String? get latestCatatanGuru {
+  String? get latestCatatanGuru => latestRecordWithCatatan?.catatan;
+
+  /// Laporan (lengkap dengan tanggalnya) yang jadi sumber
+  /// [latestCatatanGuru] — dipakai buat nampilin "catatan ini dari hari
+  /// apa" di kartu Catatan Guru, bukan cuma teksnya doang.
+  SantriRecord? get latestRecordWithCatatan {
     for (final r in records) {
-      if (r.catatan != null && r.catatan!.trim().isNotEmpty) return r.catatan;
+      if (r.catatan != null && r.catatan!.trim().isNotEmpty) return r;
     }
     return null;
   }
@@ -89,6 +123,25 @@ class DashboardProvider extends ChangeNotifier {
         .where((r) => r.keterangan == Keterangan.hadir || r.keterangan.isSanksiTanpaSetoran)
         .length;
     return hadirCount / records.length;
+  }
+
+  /// Laporan Tahsin (murni atau bagian dari Tahsin+Tahfizh) PALING BARU
+  /// sepanjang riwayat — sumber ringkasan "Tahsin Terakhir" di hero
+  /// Beranda. Sengaja tidak dibatasi ke pekan berjalan saja (beda dari
+  /// [barisTercapaiPekanIni]) karena Tahsin tidak selalu diisi tiap
+  /// pertemuan — kalau dibatasi ke pekan ini, chip-nya sering kosong
+  /// padahal ada progres Tahsin dari pekan sebelumnya yang masih relevan
+  /// ditampilkan. [SantriRecord.tahsinSummaryText] sendiri yang nentuin
+  /// format WAFA (level+halaman) atau Tilawah (surah+ayat), sesuai apa
+  /// yang guru input — bukan diasumsikan WAFA melulu.
+  SantriRecord? get latestTahsinRecord {
+    for (final r in records) {
+      if (r.status == HafalanStatus.tahsin ||
+          r.status == HafalanStatus.tahsinTahfizh) {
+        return r;
+      }
+    }
+    return null;
   }
 
   /// Total baris tahfizh yang tercapai sepanjang riwayat laporan

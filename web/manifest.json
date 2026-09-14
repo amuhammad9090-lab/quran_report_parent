@@ -1,11 +1,11 @@
 {
-    "name": "quran_report_parent",
-    "short_name": "quran_report_parent",
+    "name": "Quran Report — Portal Orang Tua",
+    "short_name": "Portal Orang Tua",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0E7C61",
+    "theme_color": "#0E7C61",
+    "description": "Portal Orang Tua — pantau perkembangan hafalan & tahsin Al-Qur'an anak.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

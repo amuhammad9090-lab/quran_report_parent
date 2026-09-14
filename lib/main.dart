@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
@@ -26,6 +27,19 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting('id_ID', null);
   await QuranEngineService.instance.load();
+
+  // Paksa font Plus Jakarta Sans SELESAI di-fetch dulu sebelum frame
+  // pertama digambar. Tanpa ini, di web font-nya di-load async di
+  // background — kalau proses fetch itu selesai PAS lagi ada widget yang
+  // animasi text style (mis. hover/press di FilledButton), ukuran teks
+  // pas layout vs pas paint jadi beda dan Flutter melempar assertion
+  // "debugSize == size" (cuma di mode debug, tapi tetap mengganggu waktu
+  // testing). `GoogleFonts.plusJakartaSans()` di sini cuma mendaftarkan
+  // request fetch-nya (dipanggil lagi nanti di app_theme.dart, request
+  // yang sama tidak di-fetch dua kali), lalu `pendingFonts()` nunggu
+  // sampai semua request font yang terdaftar itu kelar.
+  GoogleFonts.plusJakartaSans();
+  await GoogleFonts.pendingFonts();
 
   final studentRepository = FirestoreStudentRepository(schoolId: kSchoolId);
   final santriAccountRepository = FirestoreSantriAccountRepository(schoolId: kSchoolId);

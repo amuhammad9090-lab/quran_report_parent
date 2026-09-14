@@ -325,6 +325,19 @@ class SantriRecord {
     return tahfizh + tilawah;
   }
 
+  /// Ringkasan Muroja'ah/Tasmi' (surah+ayat yang diulang) — versi publik
+  /// dari [_murojaahPartText], alasannya sama dengan [tahsinSummaryText]:
+  /// dipakai di luar kelas ini (hero Beranda Portal Ortu, mode
+  /// Muroja'ah) tanpa perlu tahu detail internal segmennya.
+  String get murojaahSummaryText => _murojaahPartText;
+
+  /// Ringkasan bagian Tahsin saja (WAFA level+halaman, ATAU Tilawah
+  /// surah+ayat — tergantung [tahsinMode] yang dipakai guru saat input,
+  /// bukan cuma WAFA) — versi publik dari [_tahsinPartText], dipakai di
+  /// luar kelas ini (mis. hero Beranda Portal Ortu) buat nampilin
+  /// capaian Tahsin terakhir apa adanya sesuai mode aslinya.
+  String get tahsinSummaryText => _tahsinPartText;
+
   /// Ringkasan capaian untuk ditampilkan di kartu / laporan.
   String get capaianText {
     switch (status) {

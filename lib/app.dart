@@ -32,6 +32,18 @@ class ParentWebApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
+      // Flutter otomatis bungkus MaterialApp pakai AnimatedTheme (default
+      // ~200ms) buat transisi tema yang halus. Sengaja dimatikan: bukan
+      // cuma nggak perlu (ganti tema di sini instan lewat switcher di
+      // Profil, bukan fitur yang perlu terasa "smooth"), tapi transisi
+      // itu bikin SEMUA TextStyle di tree ikut di-lerp satu frame —
+      // kalau pas itu ada Text yang isinya emoji (mis. "👋" di sapaan
+      // hero, beda font fallback dari font utama), lebar hasil layout vs
+      // paint bisa beda sepersekian pixel dan nge-trigger assertion
+      // Flutter "debugSize == size" di text_painter.dart (RenderParagraph
+      // meledak pas paint). Duration.zero = ganti tema langsung, tanpa
+      // lerp sama sekali, assertion itu nggak akan kejadian lagi.
+      themeAnimationDuration: Duration.zero,
       initialRoute: '/',
       routes: {
         '/': (context) => const _AuthGate(),

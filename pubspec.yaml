@@ -4,7 +4,7 @@ description: >
   Report (app guru). Menampilkan perkembangan hafalan/tahsin santri
   kepada orang tua. Fitur tulis hanya pada feedback ortu terhadap guru.
 publish_to: 'none'
-version: 1.0.0
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -36,4 +36,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/data/
-    - assets/images/
+    - assets/images/app_icon.png
+    - assets/images/logo_smpit.png

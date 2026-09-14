@@ -924,6 +924,12 @@ class RecordSummaryRow extends StatelessWidget {
   final Widget keteranganChip;
   final VoidCallback? onTap;
 
+  /// Cuplikan catatan guru UNTUK LAPORAN INI SPESIFIK (bukan catatan
+  /// guru "terakhir" secara umum) — kalau diisi, ditampilkan sebagai
+  /// baris kecil ber-ikon di bawah [capaianText], supaya orang tua tahu
+  /// ada catatan di hari itu TANPA harus tap buka detail dulu.
+  final String? notePreview;
+
   const RecordSummaryRow({
     super.key,
     required this.statusIcon,
@@ -932,16 +938,19 @@ class RecordSummaryRow extends StatelessWidget {
     required this.capaianText,
     required this.keteranganChip,
     this.onTap,
+    this.notePreview,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasNote = notePreview != null && notePreview!.trim().isNotEmpty;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SoftIconBox(icon: statusIcon, color: statusColor, size: 15, padding: 7, radius: 10),
             const SizedBox(width: 10),
@@ -963,6 +972,32 @@ class RecordSummaryRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (hasNote) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_rounded,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            notePreview!.trim(),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontStyle: FontStyle.italic,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1395,9 +1430,11 @@ class SmpitLogoBadge extends StatelessWidget {
   }
 }
 
-/// Icon app (mark hijau berbentuk buku + kubah masjid) — asetnya sendiri
-/// sudah berupa kotak membulat (squircle) dengan sudut transparan, jadi
-/// cukup ditampilkan langsung pakai [ClipRRect] tanpa dus tambahan.
+/// Icon app (ilustrasi ortu+guru baca laporan, ala ikon aplikasi) —
+/// asetnya sendiri sudah berupa kotak membulat (squircle) dengan
+/// background putih, jadi cukup ditampilkan langsung pakai [ClipRRect]
+/// tanpa dus tambahan. File sama persis dengan yang dipakai buat
+/// launcher icon Android/web, biar brand-nya konsisten di semua tempat.
 class AppIconMark extends StatelessWidget {
   final double size;
   final double borderRadius;

@@ -73,6 +73,14 @@ class AppTheme {
         backgroundColor:
             isDark ? const Color(0xFF1E2732) : const Color(0xFFEFF3F1),
         selectedColor: colorScheme.primaryContainer,
+        // WAJIB transparent — tanpa ini, Material3 otomatis nge-tint
+        // permukaan chip pakai colorScheme.primary (hijau) di ATAS
+        // backgroundColor manapun yang di-set di atas, jadi chip yang
+        // seharusnya abu-gelap netral malah kelihatan hijau terang di
+        // dark mode. Ini fix GLOBAL (bukan cuma 1 layar) — semua Chip/
+        // ChoiceChip/FilterChip di app ini ikut pakai warna solid yang
+        // di-set eksplisit, bukan hasil tint otomatis.
+        surfaceTintColor: Colors.transparent,
         labelStyle: baseTextTheme.labelMedium,
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

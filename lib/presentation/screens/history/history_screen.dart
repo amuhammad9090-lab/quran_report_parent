@@ -192,6 +192,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   statusLabel: r.status.label,
                                   capaianText: r.capaianText,
                                   keteranganChip: KeteranganChip(keterangan: r.keterangan, compact: true),
+                                  notePreview: r.catatan,
                                   onTap: () => _showRecordDetail(context, r),
                                 ),
                             ],

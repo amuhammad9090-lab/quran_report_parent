@@ -20,6 +20,19 @@ import '../models/santri_record.dart';
 /// sudah dibuang dari file ini — sudah tidak dipakai sejak STEP 10
 /// (backend Firestore beneran), cuma bikin bingung kalau dibiarin.
 abstract class ReportRepository {
-  /// Semua laporan milik [student], terurut terbaru dulu.
+  /// Semua laporan milik [student], terurut terbaru dulu. One-time fetch
+  /// — dipertahankan buat kompatibilitas/kasus yang memang cuma butuh
+  /// snapshot sekali (mis. testing), tapi [DashboardProvider] sekarang
+  /// pakai [watchRecordsForStudent] di bawah supaya UI update sendiri
+  /// begitu guru input/ubah laporan, tanpa orang tua perlu refresh manual.
   Future<List<SantriRecord>> getRecordsForStudent(Student student);
+
+  /// Versi REAL-TIME dari [getRecordsForStudent] — live listener Firestore
+  /// (`.snapshots()`), emit ulang daftar terbaru setiap kali ada
+  /// perubahan di koleksi `santriRecords` yang cocok filter kelas+halaqoh+
+  /// namaAnak milik [student]. Ini yang bikin "Catatan Guru" (dan semua
+  /// data turunannya: progress hafalan, insight, dst) di Beranda muncul
+  /// LANGSUNG begitu guru submit/edit laporan — tidak perlu buka-tutup
+  /// app lagi.
+  Stream<List<SantriRecord>> watchRecordsForStudent(Student student);
 }

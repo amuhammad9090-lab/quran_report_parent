@@ -101,7 +101,6 @@ class _DashboardContent extends StatelessWidget {
     // Urutan "master" dipakai buat delay stagger konsisten, terlepas dari
     // disusun 1 kolom (mobile) atau 2 kolom (desktop) di bawah.
     final hero = _DashboardHero(student: student, dash: dash);
-    final quickStats = noRecords ? null : _QuickStatsRow(dash: dash);
     final progress = noRecords
         ? const _NoRecordsCard()
         : _ProgressHafalanSection(dash: dash, hafalan: hafalan);
@@ -133,10 +132,6 @@ class _DashboardContent extends StatelessWidget {
                     children: [
                       staggered(hero),
                       const SizedBox(height: 22),
-                      if (quickStats != null) ...[
-                        staggered(quickStats),
-                        const SizedBox(height: 22)
-                      ],
                       staggered(progress),
                       if (insight != null) ...[
                         const SizedBox(height: 22),
@@ -162,10 +157,6 @@ class _DashboardContent extends StatelessWidget {
                   children: [
                     staggered(hero),
                     const SizedBox(height: 22),
-                    if (quickStats != null) ...[
-                      staggered(quickStats),
-                      const SizedBox(height: 22)
-                    ],
                     IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,6 +332,11 @@ class _PulsingBoxState extends State<_PulsingBox>
 // Hero — sapaan + identitas + capaian pekan ini (sama seperti sebelumnya,
 // cuma sekarang jadi bagian dari alur staggered entrance).
 // ---------------------------------------------------------------------
+
+/// 3 mode fokus hero, ditentukan dari status laporan TERAKHIR — lihat
+/// pemakaiannya di [_DashboardHero.build].
+enum HeroFocus { tahfizh, tahsin, murojaah }
+
 class _DashboardHero extends StatelessWidget {
   final Student student;
   final DashboardProvider dash;
@@ -366,16 +362,21 @@ class _DashboardHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final baris = dash.barisTercapaiPekanIni;
     final target = weeklyTargetBarisForHalaqoh(student.halaqoh);
-    final ratio = (target != null && target > 0)
-        ? (baris / target).clamp(0.0, 1.0)
-        : null;
     final delta = dash.barisDeltaVsPekanLalu;
-
+    final latest = dash.latest;
+    // Mode ditentukan dari STATUS LAPORAN TERAKHIR — 3 mode: Tahsin
+    // (fokus WAFA/Tilawah), Muroja'ah/Tasmi' (fokus ayat yang diulang),
+    // atau default Tahfizh (Tahfizh & Tahsin+Tahfizh — masih ada
+    // progres baris baru yang relevan buat dipamerin gede).
+    final HeroFocus focus = switch (latest?.status) {
+      HafalanStatus.tahsin => HeroFocus.tahsin,
+      HafalanStatus.murojaahTasmi => HeroFocus.murojaah,
+      _ => HeroFocus.tahfizh,
+    };
     return WelcomeHeroCard(
-      eyebrow: "Assalamu'alaikum 👋",
+      eyebrow: "Assalamu'alaikum, $_greeting 👋",
       title: student.nama,
-      subtitle:
-          '$_greeting • Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
+      subtitle: 'Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: Colors.white.withValues(alpha: 0.18),
@@ -394,7 +395,11 @@ class _DashboardHero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      'CAPAIAN PEKAN INI',
+                      switch (focus) {
+                        HeroFocus.tahsin => 'TAHSIN TERAKHIR',
+                        HeroFocus.murojaah => "MUROJA'AH TERAKHIR",
+                        HeroFocus.tahfizh => 'CAPAIAN PEKAN INI',
+                      },
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.72),
                         fontSize: 11,
@@ -402,53 +407,285 @@ class _DashboardHero extends StatelessWidget {
                         letterSpacing: 0.6,
                       ),
                     ),
-                    if (delta != null) ...[
+                    // Delta cuma relevan buat progres baris Tahfizh —
+                    // disembunyikan di mode Tahsin/Muroja'ah biar nggak
+                    // nyesatkan (delta itu selisih baris, bukan progres
+                    // Tahsin/Muroja'ah).
+                    if (focus == HeroFocus.tahfizh && delta != null) ...[
                       const SizedBox(width: 8),
                       _DeltaPill(delta: delta),
                     ],
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      '$baris',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      target != null ? ' / $target baris' : ' baris tercapai',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                const SizedBox(height: 12),
+                // Kiri (Kehadiran) & kanan (capaian, isinya tuker sesuai
+                // mode) dibikin sama besar (Expanded flex 1:1 + tinggi
+                // disamain lewat IntrinsicHeight+stretch) biar simetris —
+                // sebelumnya kanan ngikut lebar & tinggi konten doang, jadi
+                // kelihatan pincang.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Kehadiran digabung ke hero (bukan kartu terpisah lagi) —
+                      // selalu tampil di slot kiri terlepas dari mode fokus, karena
+                      // ini metrik independen (rasio hadir sepanjang riwayat), bukan
+                      // bagian dari capaian pekan ini di kanan.
+                      Expanded(child: _KehadiranMiniStat(dash: dash)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: switch (focus) {
+                          // `!` aman: latest dipastikan non-null oleh switch
+                          // status di atas kalau focus bukan tahfizh.
+                          HeroFocus.tahsin => _TahsinBigCard(record: latest!),
+                          HeroFocus.murojaah =>
+                            _MurojaahBigCard(record: latest!),
+                          HeroFocus.tahfizh =>
+                            _BarisBigPill(baris: baris, target: target),
+                        },
                       ),
-                    ),
-                  ],
-                ),
-                if (ratio != null) ...[
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: ratio),
-                      duration: const Duration(milliseconds: 700),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, _) => LinearProgressIndicator(
-                        value: value,
-                        minHeight: 7,
-                        backgroundColor: Colors.white.withValues(alpha: 0.16),
-                        valueColor: const AlwaysStoppedAnimation(Colors.white),
-                      ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
+    );
+  }
+}
+
+/// Kartu Kehadiran — digabung ke hero (bukan kartu ringkasan terpisah lagi),
+/// selalu jadi slot kiri hero apapun mode fokusnya. Gaya vertikal (ikon di
+/// kotak lembut di atas, angka besar, label di bawah) mengikuti model
+/// "ringkasan angka" dari ss app guru, cuma diadaptasi ke tema translucent
+/// hero (bukan niru warna/tulisan appnya). Tap buka rincian Hadir/Sakit/
+/// Izin/dll — logic sama seperti sebelumnya (DashboardProvider.
+/// keteranganDistribution).
+class _KehadiranMiniStat extends StatelessWidget {
+  final DashboardProvider dash;
+  const _KehadiranMiniStat({required this.dash});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _showKehadiranDetail(context, dash),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          alignment: Alignment.center,
+          decoration: _HeroStatBox.decoration,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _HeroIconBadge(icon: Icons.fact_check_rounded),
+              const SizedBox(height: 8),
+              Text(
+                '${(dash.kehadiranRatio * 100).toStringAsFixed(0)}%',
+                style: _HeroStatBox.valueStyle,
+              ),
+              const SizedBox(height: 1),
+              Text(
+                'Kehadiran',
+                style: _HeroStatBox.labelStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ikon dalam kotak translucent — dipakai SERAGAM di semua kartu stat hero
+/// (Kehadiran & 3 varian capaian) supaya modelnya persis sama kayak ss app
+/// guru (ikon + angka + label, bukan pill warna solid).
+class _HeroIconBadge extends StatelessWidget {
+  final IconData icon;
+  const _HeroIconBadge({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(icon, size: 15, color: Colors.white),
+    );
+  }
+}
+
+/// Style bersama buat semua kartu stat di hero (Kehadiran & capaian) —
+/// SEMUA translucent putih di atas gradient hero (bukan pill solid mint/
+/// putih lagi kayak sebelumnya), biar modelnya konsisten satu sama lain.
+abstract class _HeroStatBox {
+  static BoxDecoration get decoration => BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      );
+  static const valueStyle = TextStyle(
+      color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800);
+  static TextStyle get labelStyle => TextStyle(
+        color: Colors.white.withValues(alpha: 0.72),
+        fontSize: 9.5,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
+      );
+}
+
+/// Kartu capaian — angka baris Tahfizh pekan ini vs target, jadi focal
+/// point hero saat mode Tahfizh. Diekstrak jadi widget sendiri (sebelumnya
+/// inline) supaya [_DashboardHero.build] tetap gampang dibaca sekarang ada
+/// 2 mode yang saling tuker isi. Gaya translucent sama kayak
+/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+class _BarisBigPill extends StatelessWidget {
+  final int baris;
+  final int? target;
+  const _BarisBigPill({required this.baris, required this.target});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      alignment: Alignment.center,
+      decoration: _HeroStatBox.decoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const _HeroIconBadge(icon: Icons.auto_stories_rounded),
+          const SizedBox(height: 8),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: baris),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => Text(
+              '$value',
+              style: _HeroStatBox.valueStyle,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            target != null ? '/ $target baris' : 'baris tercapai',
+            style: _HeroStatBox.labelStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kartu — ringkasan Tahsin (WAFA level+halaman ATAU Tilawah surah+ayat,
+/// otomatis sesuai [record.tahsinMode]) jadi focal point hero saat laporan
+/// terakhir statusnya Tahsin. Gaya translucent sama kayak
+/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+class _TahsinBigCard extends StatelessWidget {
+  final SantriRecord record;
+  const _TahsinBigCard({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      alignment: Alignment.center,
+      decoration: _HeroStatBox.decoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const _HeroIconBadge(icon: Icons.menu_book_rounded),
+          const SizedBox(height: 8),
+          Text(
+            record.tahsinSummaryText,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: _HeroStatBox.valueStyle,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            'Tahsin',
+            style: _HeroStatBox.labelStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kartu — fokus hero saat laporan terakhir statusnya Muroja'ah/Tasmi'.
+/// Beda dari [_TahsinBigCard]: Muroja'ah punya satuan yang gampang
+/// dihitung (ayat yang diulang, [SantriRecord.jumlahAyat]), jadi angkanya
+/// dipakai sebagai fokus utama (mirip [_BarisBigPill]), dengan surah+ayat
+/// ([record.murojaahSummaryText]) sebagai label. Fallback ke tampilan
+/// teks-saja (seperti [_TahsinBigCard]) kalau entah kenapa jumlahAyat-nya
+/// 0 (data lama/tidak lengkap). Gaya translucent sama kayak
+/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+class _MurojaahBigCard extends StatelessWidget {
+  final SantriRecord record;
+  const _MurojaahBigCard({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final ayat = record.jumlahAyat;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      alignment: Alignment.center,
+      decoration: _HeroStatBox.decoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const _HeroIconBadge(icon: Icons.repeat_rounded),
+          const SizedBox(height: 8),
+          if (ayat > 0) ...[
+            TweenAnimationBuilder<int>(
+              tween: IntTween(begin: 0, end: ayat),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => Text(
+                '$value',
+                style: _HeroStatBox.valueStyle,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              'ayat diulang',
+              style: _HeroStatBox.labelStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ] else ...[
+            Text(
+              record.murojaahSummaryText,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _HeroStatBox.valueStyle,
+            ),
+            const SizedBox(height: 1),
+            Text(
+              "Muroja'ah",
+              style: _HeroStatBox.labelStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -512,117 +749,10 @@ class _NoRecordsCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------
-// Ringkasan cepat — Kehadiran & Total Baris (akumulasi sepanjang
-// riwayat). Fitur ini sudah ada sebelumnya (DashboardProvider.
-// keteranganDistribution/kehadiranRatio/totalBarisTercapai) — di sini
-// ditampilkan ringkas sebagai 2 chip, bukan grid 4-kartu seperti versi
-// lama, supaya tidak bersaing perhatian dengan Progress Hafalan sebagai
-// fokus utama Beranda.
-// ---------------------------------------------------------------------
-class _QuickStatsRow extends StatelessWidget {
-  final DashboardProvider dash;
-  const _QuickStatsRow({required this.dash});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _QuickStatChip(
-            icon: Icons.fact_check_rounded,
-            label: 'Kehadiran',
-            value: '${(dash.kehadiranRatio * 100).toStringAsFixed(0)}%',
-            color: AppColors.greenOn(context),
-            onTap: () => _showKehadiranDetail(context, dash),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _QuickStatChip(
-            icon: Icons.menu_book_rounded,
-            label: 'Total Baris',
-            value: '${dash.totalBarisTercapai}',
-            color: Theme.of(context).colorScheme.primary,
-            onTap: null,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickStatChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _QuickStatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: Theme.of(context).cardTheme.color,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color:
-                    Theme.of(context).dividerTheme.color ?? Colors.transparent),
-          ),
-          child: Row(
-            children: [
-              SoftIconBox(
-                  icon: icon, color: color, size: 16, padding: 8, radius: 10),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(value,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 15)),
-                    Text(
-                      label,
-                      style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurfaceVariant),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              if (onTap != null)
-                Icon(Icons.chevron_right_rounded,
-                    size: 16,
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.6)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Rincian kehadiran (Hadir/Sakit/Izin/Tdk Setoran/dll) sepanjang riwayat
-/// — dibuka dari tap chip "Kehadiran". Logic dipertahankan apa adanya
-/// dari versi sebelumnya (DashboardProvider.keteranganDistribution).
+/// — dibuka dari tap item "Kehadiran". Logic dipertahankan apa adanya dari
+/// versi sebelum dipindah ke tab Perkembangan (DashboardProvider.
+/// keteranganDistribution).
 void _showKehadiranDetail(BuildContext context, DashboardProvider dash) {
   final dist = dash.keteranganDistribution;
   final total = dash.records.length;
@@ -727,7 +857,10 @@ class _ProgressHafalanSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('Progress Hafalan'),
+        // Label ikut isi kartu di bawahnya — kalau belum ada juz Tahfizh
+        // yang tersentuh dan yang tampil cuma _TahsinCard, judul "Progress
+        // Hafalan" rancu (hafalan = hafalan baru/Tahfizh, bukan Tahsin).
+        SectionLabel(primary != null ? 'Progress Hafalan' : 'Progress Tahsin'),
         if (primary != null) ...[
           Card(
             child: Padding(
@@ -1165,7 +1298,8 @@ class _CatatanGuruSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final notes = context.watch<ParentNoteProvider>();
-    final catatan = dash.latestCatatanGuru;
+    final recordWithCatatan = dash.latestRecordWithCatatan;
+    final catatan = recordWithCatatan?.catatan;
     final hasCatatan = catatan != null && catatan.trim().isNotEmpty;
     final cs = Theme.of(context).colorScheme;
 
@@ -1185,18 +1319,35 @@ class _CatatanGuruSection extends StatelessWidget {
                     SoftIconBox(icon: Icons.forum_rounded, color: cs.primary),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        hasCatatan
-                            ? catatan
-                            : 'Belum ada catatan dari guru pembimbing.',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          height: 1.5,
-                          fontWeight:
-                              hasCatatan ? FontWeight.w500 : FontWeight.w400,
-                          color:
-                              hasCatatan ? cs.onSurface : cs.onSurfaceVariant,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (hasCatatan && recordWithCatatan != null) ...[
+                            Text(
+                              DateFormat('EEEE, d MMMM yyyy', 'id_ID')
+                                  .format(recordWithCatatan.tanggal),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: cs.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          Text(
+                            hasCatatan
+                                ? catatan
+                                : 'Belum ada catatan dari guru pembimbing.',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.5,
+                              fontWeight:
+                                  hasCatatan ? FontWeight.w500 : FontWeight.w400,
+                              color:
+                                  hasCatatan ? cs.onSurface : cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
