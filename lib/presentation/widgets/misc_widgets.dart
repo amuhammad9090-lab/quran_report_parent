@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -406,10 +407,72 @@ class FormSectionCard extends StatelessWidget {
 /// Kartu sambutan hijau tua di puncak Home — identitas utama halaman.
 /// Opsional menampung baris aksi cepat (mis. Tambah Laporan/Ekspor Data)
 /// dipisah garis tipis, meniru layout referensi desain.
+/// Avatar akun orang tua — SATU SUMBER TAMPILAN dipakai di 2 tempat
+/// (bulatan kecil di hero Beranda & bulatan besar di [AccountScreen])
+/// supaya logic "tampilkan foto kalau ada, fallback ke inisial kalau
+/// belum upload" tidak dobel-tulis. [photoBase64] datang dari
+/// `AuthProvider.profilePhotoBase64` (sumbernya Firestore, lihat catatan
+/// di sana) — BUKAN file lokal, jadi selalu konsisten di semua sesi/
+/// perangkat tempat orang tua login pakai akun yang sama.
+class ProfileAvatar extends StatelessWidget {
+  final String? photoBase64;
+  final String initials;
+  final double radius;
+  final Color backgroundColor;
+  final Color foregroundColor;
+
+  const ProfileAvatar({
+    super.key,
+    required this.photoBase64,
+    required this.initials,
+    required this.radius,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    ImageProvider? image;
+    if (photoBase64 != null && photoBase64!.isNotEmpty) {
+      try {
+        image = MemoryImage(base64Decode(photoBase64!));
+      } catch (_) {
+        // Data korup/setengah ke-upload — diamkan, jatuh ke fallback
+        // inisial di bawah daripada bikin seluruh layar crash.
+        image = null;
+      }
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: backgroundColor,
+      foregroundImage: image,
+      child: image == null
+          ? Text(
+              initials,
+              style: TextStyle(
+                color: foregroundColor,
+                fontWeight: FontWeight.w800,
+                fontSize: radius * 0.7,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
 class WelcomeHeroCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget? actions;
+
+  /// Opsional — 1 baris deskripsi singkat di bawah [subtitle] (mis.
+  /// "Pantau perkembangan Tahsin, Tahfizh, dan Muroja'ah ananda"),
+  /// meniru pola tagline hero di app guru ("Kelola laporan Tahsin &
+  /// Tahfizh santri..."). Dibuat opsional & terpisah dari [subtitle]
+  /// (bukan digabung jadi satu Text) supaya pemanggil lama yang belum
+  /// diisi taglinenya tidak berubah tampilan.
+  final String? tagline;
 
   /// Opsional — avatar/ikon bulat di kiri judul (mis. inisial nama
   /// santri di Dashboard). Null = layout lama tanpa avatar, tetap sama
@@ -433,6 +496,7 @@ class WelcomeHeroCard extends StatelessWidget {
     this.leading,
     this.eyebrow,
     this.weeklyRecap,
+    this.tagline,
   });
 
   @override
@@ -471,6 +535,17 @@ class WelcomeHeroCard extends StatelessWidget {
             height: 1.4,
           ),
         ),
+        if (tagline != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            tagline!,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.68),
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
       ],
     );
 

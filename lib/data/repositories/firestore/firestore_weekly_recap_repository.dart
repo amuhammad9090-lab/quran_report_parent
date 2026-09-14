@@ -53,9 +53,16 @@ class FirestoreWeeklyRecapRepository implements WeeklyRecapRepository {
     return snap.docs.map((d) {
       final data = d.data();
       final ts = data['deployedAt'];
+      final wStart = data['weekStart'];
+      final wEnd = data['weekEnd'];
       return WeeklyRecap.fromJson(d.id, {
         ...data,
         'deployedAt': ts is Timestamp ? ts.toDate() : null,
+        // weekStart/weekEnd: field BARU, belum tentu ada di dokumen lama
+        // yang di-deploy sebelum app guru diupdate — lihat catatan
+        // lengkap soal ini di `WeeklyRecap`. Aman kalau null.
+        'weekStart': wStart is Timestamp ? wStart.toDate() : null,
+        'weekEnd': wEnd is Timestamp ? wEnd.toDate() : null,
       });
     }).toList();
   }

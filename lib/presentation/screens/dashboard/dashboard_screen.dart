@@ -18,6 +18,7 @@ import '../../../providers/hafalan_provider.dart';
 import '../../../providers/parent_note_provider.dart';
 import '../../widgets/misc_widgets.dart';
 import '../../widgets/status_badge.dart';
+import '../account/account_screen.dart';
 
 /// Beranda — "Parent Progress Journey". Dijawab sekali lihat: bagaimana
 /// perkembangan anak minggu ini, progres hafalan (visual+interaktif),
@@ -364,6 +365,12 @@ class _DashboardHero extends StatelessWidget {
     final target = weeklyTargetBarisForHalaqoh(student.halaqoh);
     final delta = dash.barisDeltaVsPekanLalu;
     final latest = dash.latest;
+    // Foto profil orang tua — lihat catatan lengkap di
+    // `AuthProvider.profilePhotoBase64` & `ProfileAvatar`. Diwatch di
+    // sini (bukan cuma di-read) supaya bulatan akun langsung ter-update
+    // begitu orang tua ganti/hapus foto dari AccountScreen tanpa perlu
+    // pindah tab dulu.
+    final photoBase64 = context.watch<AuthProvider>().profilePhotoBase64;
     // Mode ditentukan dari STATUS LAPORAN TERAKHIR — 3 mode: Tahsin
     // (fokus WAFA/Tilawah), Muroja'ah/Tasmi' (fokus ayat yang diulang),
     // atau default Tahfizh (Tahfizh & Tahsin+Tahfizh — masih ada
@@ -377,13 +384,33 @@ class _DashboardHero extends StatelessWidget {
       eyebrow: "Assalamu'alaikum, $_greeting 👋",
       title: student.nama,
       subtitle: 'Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.white.withValues(alpha: 0.18),
-        child: Text(
-          _initials,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17),
+      // Saran copy singkat ala tagline hero app guru ("Kelola laporan
+      // Tahsin & Tahfizh santri dengan mudah dan terstruktur.") — versi
+      // orang tua, fokus ke "pantau", bukan "kelola" (portal ini
+      // read-only).
+      tagline: "Pantau perkembangan Tahsin, Tahfizh, dan Muroja'ah ananda 📖",
+      // Bulatan akun sekarang jadi PINTU MASUK ke AccountScreen (data
+      // santri, ganti password, foto profil, logout) — menggantikan tab
+      // "Profil" yang lama (lihat catatan di `main_shell.dart`, tab itu
+      // sekarang jadi "Pengaturan" isinya cuma tema+tentang aplikasi).
+      leading: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AccountScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: ProfileAvatar(
+              photoBase64: photoBase64,
+              initials: _initials,
+              radius: 24,
+              backgroundColor: Colors.white.withValues(alpha: 0.18),
+              foregroundColor: Colors.white,
+            ),
+          ),
         ),
       ),
       weeklyRecap: dash.records.isEmpty
@@ -473,14 +500,14 @@ class _KehadiranMiniStat extends StatelessWidget {
         onTap: () => _showKehadiranDetail(context, dash),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           alignment: Alignment.center,
           decoration: _HeroStatBox.decoration,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const _HeroIconBadge(icon: Icons.fact_check_rounded),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 '${(dash.kehadiranRatio * 100).toStringAsFixed(0)}%',
                 style: _HeroStatBox.valueStyle,
@@ -510,12 +537,15 @@ class _HeroIconBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      // Dikecilkan dikit dari sebelumnya (padding 8 -> 6, icon 15 -> 13)
+      // sesuai permintaan — pill kehadiran & capaian tetap sama
+      // strukturnya, cuma dibikin lebih ringkas.
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
       ),
-      child: Icon(icon, size: 15, color: Colors.white),
+      child: Icon(icon, size: 13, color: Colors.white),
     );
   }
 }
@@ -526,14 +556,16 @@ class _HeroIconBadge extends StatelessWidget {
 abstract class _HeroStatBox {
   static BoxDecoration get decoration => BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       );
+  // Dikecilkan dikit (17 -> 15) sesuai permintaan, tetap w800 biar angka
+  // capaiannya masih jadi focal point hero.
   static const valueStyle = TextStyle(
-      color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800);
+      color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800);
   static TextStyle get labelStyle => TextStyle(
         color: Colors.white.withValues(alpha: 0.72),
-        fontSize: 9.5,
+        fontSize: 9,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.2,
       );
@@ -553,7 +585,7 @@ class _BarisBigPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       alignment: Alignment.center,
       decoration: _HeroStatBox.decoration,
       child: Column(
@@ -561,7 +593,7 @@ class _BarisBigPill extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const _HeroIconBadge(icon: Icons.auto_stories_rounded),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           TweenAnimationBuilder<int>(
             tween: IntTween(begin: 0, end: baris),
             duration: const Duration(milliseconds: 700),
@@ -596,7 +628,7 @@ class _TahsinBigCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       alignment: Alignment.center,
       decoration: _HeroStatBox.decoration,
       child: Column(
@@ -604,7 +636,7 @@ class _TahsinBigCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const _HeroIconBadge(icon: Icons.menu_book_rounded),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             record.tahsinSummaryText,
             textAlign: TextAlign.center,
@@ -642,7 +674,7 @@ class _MurojaahBigCard extends StatelessWidget {
     final ayat = record.jumlahAyat;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       alignment: Alignment.center,
       decoration: _HeroStatBox.decoration,
       child: Column(
@@ -650,7 +682,7 @@ class _MurojaahBigCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const _HeroIconBadge(icon: Icons.repeat_rounded),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           if (ayat > 0) ...[
             TweenAnimationBuilder<int>(
               tween: IntTween(begin: 0, end: ayat),

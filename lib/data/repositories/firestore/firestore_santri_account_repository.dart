@@ -29,6 +29,7 @@ class FirestoreSantriAccountRepository {
     if (!doc.exists) return null;
     final data = doc.data()!;
     if (data['isActive'] == false) return null;
+    final photoTs = data['photoUpdatedAt'];
     return SantriAccount(
       id: uid,
       studentId: data['studentId'] as String,
@@ -36,6 +37,29 @@ class FirestoreSantriAccountRepository {
       passwordHash: '', // tidak dipakai lagi di desain Firebase Auth
       isActive: data['isActive'] as bool? ?? true,
       createdAt: DateTime.tryParse(data['createdAt'] as String? ?? '') ?? DateTime.now(),
+      photoBase64: data['photoBase64'] as String?,
+      photoUpdatedAt: photoTs is Timestamp ? photoTs.toDate() : null,
     );
+  }
+
+  /// Simpan/hapus foto profil orang tua untuk akun [uid] SENDIRI.
+  ///
+  /// SENGAJA pakai `.set(..., SetOptions(merge: true))` cuma di 2 field
+  /// ini (bukan tulis ulang dokumen penuh) — supaya field lain
+  /// (studentId/username/isActive/dst, yang dikelola dari sisi
+  /// admin/guru) tidak pernah ketiban tertimpa dari sisi orang tua.
+  /// Ini SATU-SATUNYA operasi tulis milik portal orang tua selain
+  /// `ParentNoteRepository` (lihat catatan arsitektur di sana) — dan
+  /// scope-nya sengaja dibatasi ke dokumen akun MILIK SENDIRI, bukan
+  /// data akademik santri (rules Firestore harus membatasi update field
+  /// di sini cuma untuk `request.auth.uid == uid`, dan cuma untuk 2
+  /// field `photoBase64`/`photoUpdatedAt`).
+  ///
+  /// [base64Data] null = hapus foto (balik ke fallback inisial).
+  Future<void> updatePhoto(String uid, String? base64Data) {
+    return _col.doc(uid).set({
+      'photoBase64': base64Data ?? FieldValue.delete(),
+      'photoUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

@@ -13,15 +13,21 @@ import '../providers/parent_note_provider.dart';
 import '../providers/weekly_recap_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/history/history_screen.dart';
-import 'screens/profile/profile_screen.dart';
+import 'screens/settings/settings_screen.dart';
 
 /// Shell navigasi utama portal orang tua — 3 tab (Beranda, Perkembangan,
-/// Profil). Tab "Hafalan" sengaja DIHAPUS sebagai layar terpisah — progress
+/// Pengaturan). Tab "Hafalan" sengaja DIHAPUS sebagai layar terpisah — progress
 /// per-juz sekarang tampil sebagai kartu interaktif di Beranda (lihat
 /// [HafalanProvider]) dan detail riwayatnya di tab Perkembangan. Sengaja
 /// juga TIDAK membawa seluruh navigation app guru (Laporan, Folder,
 /// Statistik, Export, dst) — portal ini harus terasa ringan, cuma yang
 /// relevan buat orang tua.
+///
+/// Tab ke-3 SEBELUMNYA "Profil" — sekarang "Pengaturan" (`SettingsScreen`,
+/// isinya cuma tema + tentang aplikasi). Konten Profil lama (Data Santri,
+/// Ganti Password, Logout, foto profil) pindah ke `AccountScreen`, diakses
+/// dengan TAP bulatan akun di hero Beranda (lihat `_DashboardHero` di
+/// `dashboard_screen.dart`) — bukan tab tersendiri lagi.
 ///
 /// `NavigationBar` di sini nanti otomatis ambil style dari `AppTheme`
 /// (height 72, indicator radius 16, dll — sudah didefinisikan di
@@ -98,7 +104,7 @@ class _MainShellBodyState extends State<_MainShellBody> {
   static const _destinations = [
     (icon: Icons.home_rounded, label: 'Beranda'),
     (icon: Icons.trending_up_rounded, label: 'Perkembangan'),
-    (icon: Icons.person_rounded, label: 'Profil'),
+    (icon: Icons.settings_rounded, label: 'Pengaturan'),
   ];
 
   void _goToPerkembangan() => setState(() => _index = 1);
@@ -108,7 +114,7 @@ class _MainShellBodyState extends State<_MainShellBody> {
     final screens = [
       DashboardScreen(onSeeAllActivity: _goToPerkembangan),
       const HistoryScreen(),
-      const ProfileScreen(),
+      const SettingsScreen(),
     ];
 
     return LayoutBuilder(

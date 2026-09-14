@@ -102,6 +102,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final sortedDates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
 
     final weeklyRecaps = context.watch<WeeklyRecapProvider>();
+    // Jaring pengaman staleness (lihat `weeklyRecapIsLikelyStale` &
+    // catatan panjang di `WeeklyRecap`) — hitung dari SEMUA
+    // `dash.records` (bukan `filtered`/periode UI), supaya filter
+    // periode di atas tidak ikut mempengaruhi validitas kartu rekap.
+    final liveReportDates = dash.records.map((r) => r.tanggal).toList();
+    final visibleRecaps = weeklyRecaps.recaps
+        .where((r) => !weeklyRecapIsLikelyStale(r, liveReportDates))
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -109,8 +117,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         centerTitle: false,
         toolbarHeight: 68,
         // Override ukuran default tema (headlineSmall ~24) — khusus di
-        // sini aja (bukan appBarTheme global) supaya AppBar Beranda*/
-        // Profil nggak ikut membesar, cuma "Perkembangan" sesuai
+        // sini aja (bukan appBarTheme global) supaya AppBar Beranda/
+        // Pengaturan nggak ikut membesar, cuma "Perkembangan" sesuai
         // permintaan.
         titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(
               fontSize: 26,
@@ -127,8 +135,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
               // layar dengan info "belum ada" untuk fitur yang memang
               // baru/opsional ini; daftar harian di bawah tetap jadi
               // fokus utama halaman.
-              if (weeklyRecaps.isLoading || weeklyRecaps.recaps.isNotEmpty)
-                _WeeklyRecapSection(provider: weeklyRecaps),
+              if (weeklyRecaps.isLoading || visibleRecaps.isNotEmpty)
+                _WeeklyRecapSection(provider: weeklyRecaps, visibleRecaps: visibleRecaps),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
                 child: SizedBox(
@@ -286,7 +294,12 @@ class _RecordDetailSheet extends StatelessWidget {
 
 class _WeeklyRecapSection extends StatelessWidget {
   final WeeklyRecapProvider provider;
-  const _WeeklyRecapSection({required this.provider});
+  // Hasil FILTER dari `provider.recaps` (jaring pengaman staleness —
+  // lihat `weeklyRecapIsLikelyStale` & catatan panjang di
+  // `WeeklyRecap`), dihitung sekali di `_HistoryScreenState.build`
+  // supaya tidak dihitung ulang tiap rebuild section ini.
+  final List<WeeklyRecap> visibleRecaps;
+  const _WeeklyRecapSection({required this.provider, required this.visibleRecaps});
 
   @override
   Widget build(BuildContext context) {
@@ -317,9 +330,9 @@ class _WeeklyRecapSection extends StatelessWidget {
               height: 108,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: provider.recaps.length,
+                itemCount: visibleRecaps.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (context, i) => _WeeklyRecapCard(recap: provider.recaps[i]),
+                itemBuilder: (context, i) => _WeeklyRecapCard(recap: visibleRecaps[i]),
               ),
             ),
           const SizedBox(height: 6),

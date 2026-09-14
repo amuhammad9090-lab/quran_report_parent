@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -36,6 +39,14 @@ class AuthProvider extends ChangeNotifier {
   String? errorMessage;
   ParentAccessScope? scope;
   Student? currentStudent;
+
+  /// Foto profil orang tua (base64) — SUMBER KEBENARANNYA Firestore
+  /// (lihat `SantriAccount.photoBase64`), diisi di [_loadAccountAndStudent]
+  /// tiap kali login/restore sesi. Nilai di memori ini cuma cache
+  /// tampilan selama sesi jalan; kalau app di-cache-clear/uninstall lalu
+  /// login lagi, field ini otomatis terisi ulang dari server — TIDAK
+  /// bergantung sama sekali pada penyimpanan lokal perangkat.
+  String? profilePhotoBase64;
 
   Future<void> login(String username, String password) async {
     status = AuthStatus.loading;
@@ -124,9 +135,52 @@ class AuthProvider extends ChangeNotifier {
 
       currentStudent = student;
       scope = ParentAccessScope(studentId: student.id, santriAccountId: uid);
+      profilePhotoBase64 = account.photoBase64;
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Upload/ganti foto profil. [bytes] diharapkan SUDAH dikompres kecil
+  /// oleh caller (lihat `AccountScreen` — pakai `ImagePicker(maxWidth:
+  /// maxHeight: imageQuality:)` supaya tidak perlu package image-processing
+  /// tambahan) sebelum di-encode base64 dan ditulis ke Firestore lewat
+  /// [FirestoreSantriAccountRepository.updatePhoto] — BUKAN disimpan ke
+  /// file/cache lokal, persis prinsip yang sama seperti [changePassword]:
+  /// sumber kebenaran di server, jadi tidak akan hilang walau cache
+  /// aplikasi dibersihkan (mis. lewat aplikasi "RAM cleaner"/junk
+  /// cleaner) atau aplikasinya di-uninstall lalu dipasang ulang.
+  ///
+  /// Return null kalau sukses, atau pesan error yang aman ditampilkan.
+  Future<String?> updateProfilePhoto(Uint8List bytes) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return 'Sesi login tidak valid, silakan login ulang.';
+
+    try {
+      final base64Data = base64Encode(bytes);
+      await accountRepository.updatePhoto(uid, base64Data);
+      profilePhotoBase64 = base64Data;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      return 'Gagal mengunggah foto. Periksa koneksi internet, lalu coba lagi.';
+    }
+  }
+
+  /// Hapus foto profil (balik ke fallback inisial nama) — tulis `null`
+  /// ke Firestore lewat repository yang sama, lihat [updateProfilePhoto].
+  Future<String?> removeProfilePhoto() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return 'Sesi login tidak valid, silakan login ulang.';
+
+    try {
+      await accountRepository.updatePhoto(uid, null);
+      profilePhotoBase64 = null;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      return 'Gagal menghapus foto. Periksa koneksi internet, lalu coba lagi.';
     }
   }
 
@@ -180,6 +234,7 @@ class AuthProvider extends ChangeNotifier {
     status = AuthStatus.loggedOut;
     scope = null;
     currentStudent = null;
+    profilePhotoBase64 = null;
     notifyListeners();
   }
 }

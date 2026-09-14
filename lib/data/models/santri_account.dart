@@ -24,6 +24,23 @@ class SantriAccount {
 
   final DateTime createdAt;
 
+  /// Foto profil ORANG TUA (bukan foto santri) — disimpan sebagai string
+  /// base64 LANGSUNG di dokumen Firestore ini (bukan file lokal/cache
+  /// HP), sengaja supaya level ketahanannya SAMA PERSIS dengan
+  /// [passwordHash]/Firebase Auth: sumber kebenarannya di server, jadi
+  /// tidak hilang walau aplikasi cache-nya dibersihkan app cleaner
+  /// ATAU aplikasinya di-uninstall lalu install ulang — tinggal login
+  /// lagi, foto otomatis kebaca ulang dari sini. Null = belum pernah
+  /// upload foto (fallback ke inisial nama di UI).
+  ///
+  /// Sengaja base64-di-Firestore, BUKAN Firebase Storage — supaya tidak
+  /// nambah dependency/setup bucket baru; ukuran dijaga kecil dari sisi
+  /// picker (lihat `AuthProvider.updateProfilePhoto`, dikompres ke
+  /// maks ~480x480 sebelum di-encode) supaya tetap jauh di bawah limit
+  /// 1 dokumen Firestore (1 MiB).
+  final String? photoBase64;
+  final DateTime? photoUpdatedAt;
+
   const SantriAccount({
     required this.id,
     required this.studentId,
@@ -31,12 +48,16 @@ class SantriAccount {
     required this.passwordHash,
     this.isActive = true,
     required this.createdAt,
+    this.photoBase64,
+    this.photoUpdatedAt,
   });
 
   SantriAccount copyWith({
     String? username,
     String? passwordHash,
     bool? isActive,
+    String? photoBase64,
+    DateTime? photoUpdatedAt,
   }) {
     return SantriAccount(
       id: id,
@@ -45,6 +66,8 @@ class SantriAccount {
       passwordHash: passwordHash ?? this.passwordHash,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt,
+      photoBase64: photoBase64 ?? this.photoBase64,
+      photoUpdatedAt: photoUpdatedAt ?? this.photoUpdatedAt,
     );
   }
 
@@ -55,6 +78,8 @@ class SantriAccount {
         'passwordHash': passwordHash,
         'isActive': isActive,
         'createdAt': createdAt.toIso8601String(),
+        if (photoBase64 != null) 'photoBase64': photoBase64,
+        if (photoUpdatedAt != null) 'photoUpdatedAt': photoUpdatedAt!.toIso8601String(),
       };
 
   factory SantriAccount.fromJson(Map<String, dynamic> json) => SantriAccount(
@@ -64,5 +89,9 @@ class SantriAccount {
         passwordHash: json['passwordHash'] as String,
         isActive: json['isActive'] as bool? ?? true,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        photoBase64: json['photoBase64'] as String?,
+        photoUpdatedAt: json['photoUpdatedAt'] != null
+            ? DateTime.tryParse(json['photoUpdatedAt'] as String)
+            : null,
       );
 }
