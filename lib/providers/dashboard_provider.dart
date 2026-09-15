@@ -16,23 +16,10 @@ class DashboardProvider extends ChangeNotifier {
   DashboardProvider({required this.reportRepository});
 
   bool isLoading = false;
-  // <-- BARU: sebelumnya gak ada try/catch di load() -- kalau query
-  // Firestore gagal (index belum jadi, rules, dll), isLoading NGGAK
-  // PERNAH balik ke false, jadi UI muter selama-lamanya tanpa pesan
-  // error apa pun. Sekarang error ke-tangkep & disimpan di [error].
   String? error;
   List<SantriRecord> records = [];
-
   StreamSubscription<List<SantriRecord>>? _subscription;
 
-  /// Mulai LISTEN live ke laporan [student] (bukan fetch sekali lagi) —
-  /// return Future yang selesai begitu snapshot PERTAMA datang (atau
-  /// gagal), supaya pemanggil yang masih await pola lama tetap jalan
-  /// normal. Setelah itu, listener tetap aktif di background: begitu
-  /// guru submit/edit laporan baru, [records] ke-update sendiri dan
-  /// [notifyListeners] dipanggil lagi — makanya "Catatan Guru", progress
-  /// hafalan, insight, dst di Beranda otomatis real-time tanpa orang tua
-  /// perlu refresh/buka-tutup app.
   Future<void> load(Student student) {
     isLoading = true;
     error = null;
@@ -49,8 +36,6 @@ class DashboardProvider extends ChangeNotifier {
         if (!completer.isCompleted) completer.complete();
       },
       onError: (Object e, StackTrace st) {
-        // debugPrint biar tetap kelihatan jelas di console browser (F12),
-        // gampang dibedain dari noise log Firebase yang lain.
         debugPrint('DashboardProvider.load GAGAL: $e\n$st');
         error = e.toString();
         records = [];
@@ -68,18 +53,9 @@ class DashboardProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Laporan paling baru (records sudah terurut terbaru dulu dari
-  /// repository), null kalau belum pernah ada laporan sama sekali.
   SantriRecord? get latest => records.isEmpty ? null : records.first;
-
-  /// Catatan guru dari laporan terakhir yang punya catatan (bukan cuma
-  /// laporan paling baru — kalau laporan terakhir kebetulan tidak diisi
-  /// catatan, ambil catatan terbaru yang tersedia).
   String? get latestCatatanGuru => latestRecordWithCatatan?.catatan;
 
-  /// Laporan (lengkap dengan tanggalnya) yang jadi sumber
-  /// [latestCatatanGuru] — dipakai buat nampilin "catatan ini dari hari
-  /// apa" di kartu Catatan Guru, bukan cuma teksnya doang.
   SantriRecord? get latestRecordWithCatatan {
     for (final r in records) {
       if (r.catatan != null && r.catatan!.trim().isNotEmpty) return r;
@@ -87,10 +63,6 @@ class DashboardProvider extends ChangeNotifier {
     return null;
   }
 
-  /// Distribusi `keterangan` (Hadir/Sakit/Izin/dst) dari SELURUH laporan
-  /// yang ada — ini satu-satunya data kehadiran yang benar-benar ada di
-  /// app guru (per-laporan, bukan rekap kehadiran harian terpisah), jadi
-  /// dipakai apa adanya, bukan mengarang sistem kehadiran baru.
   Map<Keterangan, int> get keteranganDistribution {
     final map = <Keterangan, int>{};
     for (final r in records) {
@@ -106,17 +78,6 @@ class DashboardProvider extends ChangeNotifier {
 
   /// % laporan yang santrinya HADIR secara fisik, dari seluruh laporan —
   /// dipakai untuk card ringkasan "Kehadiran" di dashboard.
-  ///
-  /// PENTING (sinkron dengan app guru — lihat `records_provider.dart`
-  /// `totalHadir`): "hadir" DI SINI BUKAN cuma `Keterangan.hadir`, tapi
-  /// juga 3 keterangan "sanksi tanpa setoran" (`tidakSetoran`,
-  /// `tidakTahsin`, `tidakMurojaah`, lihat `Keterangan.isSanksiTanpaSetoran`
-  /// di enums.dart) — santri yang keterangannya itu SECARA FISIK hadir,
-  /// cuma nggak setor/tahsin/murojaah (males/ketiduran/dll), beda dari
-  /// Izin Sakit/Izin/Izin Lomba/Izin Pelatihan/Alpa yang memang nggak
-  /// hadir. Kalau di sini cuma dihitung `Keterangan.hadir` saja, angka
-  /// Kehadiran orang tua akan lebih RENDAH dari yang guru lihat di app
-  /// guru untuk santri yang sama — jadi harus dijaga tetap sama definisi.
   double get kehadiranRatio {
     if (records.isEmpty) return 0;
     final hadirCount = records
@@ -127,13 +88,7 @@ class DashboardProvider extends ChangeNotifier {
 
   /// Laporan Tahsin (murni atau bagian dari Tahsin+Tahfizh) PALING BARU
   /// sepanjang riwayat — sumber ringkasan "Tahsin Terakhir" di hero
-  /// Beranda. Sengaja tidak dibatasi ke pekan berjalan saja (beda dari
-  /// [barisTercapaiPekanIni]) karena Tahsin tidak selalu diisi tiap
-  /// pertemuan — kalau dibatasi ke pekan ini, chip-nya sering kosong
-  /// padahal ada progres Tahsin dari pekan sebelumnya yang masih relevan
-  /// ditampilkan. [SantriRecord.tahsinSummaryText] sendiri yang nentuin
-  /// format WAFA (level+halaman) atau Tilawah (surah+ayat), sesuai apa
-  /// yang guru input — bukan diasumsikan WAFA melulu.
+  /// Beranda.
   SantriRecord? get latestTahsinRecord {
     for (final r in records) {
       if (r.status == HafalanStatus.tahsin ||
@@ -146,8 +101,6 @@ class DashboardProvider extends ChangeNotifier {
 
   /// Total baris tahfizh yang tercapai sepanjang riwayat laporan
   /// (agregat totalBaris semua laporan status Tahfizh/Tahsin+Tahfizh).
-  /// Ini angka MENTAH dari data existing (bukan persentase — persentase
-  /// per-juz baru dihitung di STEP 6, lihat ProgressCalculationService).
   int get totalBarisTercapai =>
       records.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
 
@@ -179,16 +132,12 @@ class DashboardProvider extends ChangeNotifier {
       records.where((r) => _isInCurrentWeek(r.tanggal)).toList();
 
   /// Total baris Tahfizh yang tercapai DI PEKAN BERJALAN SAJA — beda
-  /// dari [totalBarisTercapai] yang akumulasi sepanjang riwayat. Ini
-  /// yang dibandingkan ke target mingguan per halaqoh
-  /// ([weeklyTargetBarisForHalaqoh]) buat card "Progres Hafalan", dan
-  /// ditampilkan mentah di card "Baris Pekan Ini" + banner Dashboard.
+  /// dari [totalBarisTercapai] yang akumulasi sepanjang riwayat.
   int get barisTercapaiPekanIni =>
       recordsThisWeek.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
 
   /// Tanggal laporan PALING BARU di pekan berjalan — null kalau belum
-  /// ada laporan sama sekali di pekan ini. Dipakai buat card "Rekap
-  /// Terakhir" (biasanya jatuh Jumat/Sabtu, tergantung guru).
+  /// ada laporan sama sekali di pekan ini.
   DateTime? get tanggalRekapTerakhirPekanIni {
     if (recordsThisWeek.isEmpty) return null;
     return recordsThisWeek.map((r) => r.tanggal).reduce((a, b) => a.isAfter(b) ? a : b);
@@ -215,9 +164,7 @@ class DashboardProvider extends ChangeNotifier {
   int get barisTercapaiPekanLalu =>
       recordsPreviousWeek.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
 
-  /// Selisih baris pekan ini vs pekan lalu. Null kalau pekan lalu belum
-  /// ada laporan sama sekali (dibandingkan ke 0 tidak adil/menyesatkan —
-  /// bisa jadi santrinya baru mulai dilaporkan pekan ini).
+  /// Selisih baris pekan ini vs pekan lalu.
   int? get barisDeltaVsPekanLalu {
     if (recordsPreviousWeek.isEmpty) return null;
     return barisTercapaiPekanIni - barisTercapaiPekanLalu;
