@@ -278,14 +278,6 @@ InputDecorationTheme fieldDecorationTheme(
   );
 }
 
-/// Field pilih-SAJA (tanpa ketik bebas sama sekali) — dipakai buat
-/// Kelas/Halaqoh/Nama Santri: nilai HARUS salah satu dari [options],
-/// nggak ada cara buat user mengetik teks bebas ke luar daftar itu.
-/// Dipakai [DropdownButtonFormField] (bukan [DropdownMenu]) karena
-/// widget itu memang murni pilih dari [items], nggak punya text-input
-/// sama sekali. Diskin biar senada sama [fieldDecoration]: ikon dalam
-/// kotak warna, rounded-16.
-///
 /// [value] dipakai sebagai `initialValue` — [DropdownButtonFormField]
 /// modern nggak otomatis re-render pas [value] berubah dari luar (mis.
 /// direset programatis karena kelas/halaqoh ganti). Makanya widget ini
@@ -320,10 +312,6 @@ class SelectField extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final color = accent ?? cs.primary;
-    // Kalau value sekarang bukan bagian dari options (mis. kelas/halaqoh
-    // baru dipilih & santri lama nggak termasuk di halaqoh itu lagi),
-    // jangan kirim value asing ke DropdownButtonFormField — bisa assert
-    // error. Tampilkan kosong aja (biarkan hintText yang muncul).
     final safeValue = (value != null && options.contains(value)) ? value : null;
     final isUsable = enabled && options.isNotEmpty;
     return DropdownButtonFormField<String>(
@@ -372,8 +360,6 @@ class FormSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Pakai Card resmi (dari cardTheme) — konsisten sama SectionCard di
-    // Home dan semua card lain, bukan bikin shadow/border manual sendiri.
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -407,13 +393,6 @@ class FormSectionCard extends StatelessWidget {
 /// Kartu sambutan hijau tua di puncak Home — identitas utama halaman.
 /// Opsional menampung baris aksi cepat (mis. Tambah Laporan/Ekspor Data)
 /// dipisah garis tipis, meniru layout referensi desain.
-/// Avatar akun orang tua — SATU SUMBER TAMPILAN dipakai di 2 tempat
-/// (bulatan kecil di hero Beranda & bulatan besar di [AccountScreen])
-/// supaya logic "tampilkan foto kalau ada, fallback ke inisial kalau
-/// belum upload" tidak dobel-tulis. [photoBase64] datang dari
-/// `AuthProvider.profilePhotoBase64` (sumbernya Firestore, lihat catatan
-/// di sana) — BUKAN file lokal, jadi selalu konsisten di semua sesi/
-/// perangkat tempat orang tua login pakai akun yang sama.
 class ProfileAvatar extends StatelessWidget {
   final String? photoBase64;
   final String initials;
@@ -437,8 +416,6 @@ class ProfileAvatar extends StatelessWidget {
       try {
         image = MemoryImage(base64Decode(photoBase64!));
       } catch (_) {
-        // Data korup/setengah ke-upload — diamkan, jatuh ke fallback
-        // inisial di bawah daripada bikin seluruh layar crash.
         image = null;
       }
     }
@@ -462,36 +439,18 @@ class ProfileAvatar extends StatelessWidget {
 }
 
 class WelcomeHeroCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
+  final String? title;
+  final String? subtitle;
   final Widget? actions;
-
-  /// Opsional — 1 baris deskripsi singkat di bawah [subtitle] (mis.
-  /// "Pantau perkembangan Tahsin, Tahfizh, dan Muroja'ah ananda"),
-  /// meniru pola tagline hero di app guru ("Kelola laporan Tahsin &
-  /// Tahfizh santri..."). Dibuat opsional & terpisah dari [subtitle]
-  /// (bukan digabung jadi satu Text) supaya pemanggil lama yang belum
-  /// diisi taglinenya tidak berubah tampilan.
   final String? tagline;
-
-  /// Opsional — avatar/ikon bulat di kiri judul (mis. inisial nama
-  /// santri di Dashboard). Null = layout lama tanpa avatar, tetap sama
-  /// persis seperti sebelumnya.
   final Widget? leading;
-
-  /// Label kecil di atas [title] (mis. sapaan "Selamat Pagi 👋"),
-  /// ditampilkan sebelum judul dengan opacity lebih redup. Opsional.
   final String? eyebrow;
-
-  /// Opsional — blok "Capaian Pekan Ini" (baris tercapai vs target +
-  /// progress bar), dipisah garis tipis sama seperti [actions]. Kalau
-  /// [actions] juga diisi, urutannya: identitas → weeklyRecap → actions.
   final Widget? weeklyRecap;
 
   const WelcomeHeroCard({
     super.key,
-    required this.title,
-    required this.subtitle,
+    this.title,
+    this.subtitle,
     this.actions,
     this.leading,
     this.eyebrow,
@@ -501,53 +460,76 @@ class WelcomeHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final titleColumn = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (eyebrow != null) ...[
-          Text(
-            eyebrow!,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.78),
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-        ],
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-            height: 1.25,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.85),
-            fontSize: 13,
-            height: 1.4,
-          ),
-        ),
-        if (tagline != null) ...[
-          const SizedBox(height: 6),
-          Text(
+    final hasTitleBlock = eyebrow != null || title != null || subtitle != null;
+
+    final titleColumn = !hasTitleBlock
+        ? null
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (eyebrow != null) ...[
+                Text(
+                  eyebrow!,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+              if (title != null) ...[
+                Text(
+                  title!,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              if (tagline != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  tagline!,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ],
+          );
+
+    // [title] null tapi [tagline] diisi -> tagline jadi teks mandiri di
+    // posisi paling atas kartu (dipakai di hero Beranda sekarang).
+    final standaloneTagline = (!hasTitleBlock && tagline != null)
+        ? Text(
             tagline!,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.68),
-              fontSize: 12,
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 13,
               height: 1.4,
+              fontWeight: FontWeight.w600,
             ),
-          ),
-        ],
-      ],
-    );
+          )
+        : null;
+
+    final hasHeaderContent = titleColumn != null || standaloneTagline != null;
 
     return Container(
       width: double.infinity,
@@ -575,21 +557,26 @@ class WelcomeHeroCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (leading == null)
-                titleColumn
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    leading!,
-                    const SizedBox(width: 14),
-                    Expanded(child: titleColumn),
-                  ],
-                ),
+              if (hasHeaderContent)
+                if (titleColumn == null)
+                  standaloneTagline!
+                else if (leading == null)
+                  titleColumn
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      leading!,
+                      const SizedBox(width: 14),
+                      Expanded(child: titleColumn),
+                    ],
+                  ),
               if (weeklyRecap != null) ...[
-                const SizedBox(height: 18),
-                Divider(color: Colors.white.withValues(alpha: 0.18), height: 1),
-                const SizedBox(height: 16),
+                if (hasHeaderContent) ...[
+                  const SizedBox(height: 18),
+                  Divider(color: Colors.white.withValues(alpha: 0.18), height: 1),
+                  const SizedBox(height: 16),
+                ],
                 weeklyRecap!,
               ],
               if (actions != null) ...[
@@ -673,8 +660,6 @@ class SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    // Pakai widget Card resmi (dari cardTheme) — bukan Container manual —
-    // biar shadow/radius-nya 100% sama dengan semua card lain di aplikasi.
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -780,10 +765,6 @@ class SummaryStatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
-
-  /// Opsional — kalau diisi, kartu jadi bisa di-tap (mis. card
-  /// "Kehadiran" buka rincian Sakit/Izin/Tdk Setoran dll di bottom
-  /// sheet) dan dikasih ikon info kecil di pojok sebagai penanda.
   final VoidCallback? onTap;
 
   const SummaryStatCard({
@@ -924,10 +905,7 @@ class CategoryTile extends StatelessWidget {
 }
 
 /// Kartu kelompok per tanggal — dipakai di halaman Detail Santri,
-/// Kehadiran, dan Rekap Bulanan (Statistik). Header tanggal + jumlah item,
-/// lalu baris-baris [rows] dipisah garis tipis, semuanya digabung jadi
-/// SATU card per tanggal (biar "digabung" senada gaya Home, bukan card
-/// bertumpuk per item).
+/// Kehadiran, dan Rekap Bulanan (Statistik).
 class DateGroupCard extends StatelessWidget {
   final DateTime date;
   final List<Widget> rows;
@@ -987,10 +965,7 @@ class DateGroupCard extends StatelessWidget {
   }
 }
 
-/// Baris ringkas laporan tahfizh/tahsin di dalam [DateGroupCard] — dipakai
-/// di halaman Detail Santri. Cukup status + capaian + keterangan, tanpa
-/// nama (karena sudah dalam konteks 1 santri) dan tanpa tanggal (sudah
-/// jadi header grup).
+/// Baris ringkas laporan tahfizh/tahsin di dalam [DateGroupCard]
 class RecordSummaryRow extends StatelessWidget {
   final IconData statusIcon;
   final Color statusColor;
@@ -998,11 +973,6 @@ class RecordSummaryRow extends StatelessWidget {
   final String capaianText;
   final Widget keteranganChip;
   final VoidCallback? onTap;
-
-  /// Cuplikan catatan guru UNTUK LAPORAN INI SPESIFIK (bukan catatan
-  /// guru "terakhir" secara umum) — kalau diisi, ditampilkan sebagai
-  /// baris kecil ber-ikon di bawah [capaianText], supaya orang tua tahu
-  /// ada catatan di hari itu TANPA harus tap buka detail dulu.
   final String? notePreview;
 
   const RecordSummaryRow({
@@ -1153,9 +1123,7 @@ class SantriAttendanceRow extends StatelessWidget {
 }
 
 /// Header pinned seragam untuk halaman non-Home yang dibuka lewat push
-/// (Daftar Santri, Detail Santri, Kehadiran, Rekap Bulanan) — tombol
-/// kembali + judul + subjudul opsional, nempel di atas pas discroll,
-/// senada gaya SliverAppBar pinned di Home.
+/// (Daftar Santri, Detail Santri, Kehadiran, Rekap Bulanan)
 class PushedPageHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -1220,8 +1188,7 @@ class PushedPageHeader extends StatelessWidget {
 
 /// Satu tombol aksi di dalam [SelectionActionBar] — kalau [filled] true jadi
 /// tombol solid warna [destructive] error / primary, kalau enggak jadi
-/// outline. Selalu dibungkus Expanded sama parent-nya biar label sepanjang
-/// apapun ("Keluarkan dari Folder") nggak pernah kepotong.
+/// outline.
 class SelectionAction {
   final IconData icon;
   final String label;
@@ -1275,11 +1242,7 @@ class _SelectionActionButton extends StatelessWidget {
 }
 
 /// Bar aksi mode pilih-banyak (centang) — dipakai di halaman Laporan &
-/// Folder. Disusun 2 baris niru pola Google Photos/Files: baris atas
-/// checkbox "pilih semua" + jumlah terpilih + tombol tutup (X), baris bawah
-/// tombol-tombol aksi (Expanded rata) biar labelnya selalu muat, seberapa
-/// pun banyak aksinya — beda dari versi lama yang semua ditumpuk 1 baris
-/// sampai kepotong ("1 dipi...").
+/// Folder.
 class SelectionActionBar extends StatelessWidget {
   final int selectedCount;
   final int totalCount;
@@ -1362,11 +1325,7 @@ class SelectionActionBar extends StatelessWidget {
 }
 
 /// Snackbar seragam (ikon + pesan, rounded) dipakai di seluruh app — ganti
-/// [SnackBar] polos bawaan. Selalu nempel rapat (16px) di atas apapun yang
-/// ada di bawahnya. Kalau layar itu punya FAB yang lagi tampil, jangan cuma
-/// dikasih jarak ekstra (bikin ngambang aneh di atas FAB) — sembunyikan dulu
-/// FAB-nya lewat [onFabVisibilityChanged] selama snackbar tampil, baru
-/// muncul lagi begitu snackbar-nya hilang.
+/// [SnackBar] polos bawaan.
 ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showAppSnackbar(
     BuildContext context,
     String message, {
@@ -1398,17 +1357,7 @@ ScaffoldFeatureController<SnackBar, SnackBarClosedReason> showAppSnackbar(
 /// Mixin buat nampilin pesan singkat (pengganti SnackBar) sebagai BAGIAN
 /// dari Column konten sheet sendiri, bukan lewat ScaffoldMessenger —
 /// dipakai di bottom sheet yang gak punya Scaffold sendiri (mis. export
-/// sheet). `ScaffoldMessenger.of(context)` dari dalam sheet modal begitu
-/// bakal nemu Scaffold HALAMAN DI BALIK sheet, jadi SnackBar-nya kegambar
-/// di belakang sheet — ketutup, gak kelihatan user. Solusinya: tampilkan
-/// sebagai [InlineMessageBanner] biasa, jadi bagian layout Column sheet
-/// itu sendiri (otomatis selalu di depan & otomatis nggak nyisain ruang
-/// kosong kalau lagi gak ada pesan, karena ukurannya ngikutin isi
-/// teksnya doang — pola ini sudah kebukti jalan lebih dulu di
-/// ExportSheet, lihat catatan panjang di sana). Cara pakai: campur
-/// `with InlineMessageMixin<TWidget>` di State, panggil
-/// [showInlineMessage], render `if (inlineMessage != null)
-/// InlineMessageBanner(message: inlineMessage!)` di build().
+/// sheet).
 mixin InlineMessageMixin<T extends StatefulWidget> on State<T> {
   String? inlineMessage;
   Timer? _inlineMessageTimer;
@@ -1458,11 +1407,7 @@ class InlineMessageBanner extends StatelessWidget {
 }
 
 /// Logo SMPIT Al Madinah — ukurannya SELALU persegi (1:1) di semua
-/// tempat biar konsisten. Defaultnya dibungkus kartu putih (logo aslinya
-/// berwarna-warni di atas kanvas transparan, jadi butuh alas solid biar
-/// kebaca di background apa pun) — kecuali [withBackground] dimatikan,
-/// dipakai khusus di Splash yang background-nya sendiri sudah gradient
-/// hijau dan sengaja TIDAK mau logo dikasih kotak putih lagi.
+/// tempat biar konsisten.
 class SmpitLogoBadge extends StatelessWidget {
   final double size;
   final bool withBackground;
@@ -1505,11 +1450,7 @@ class SmpitLogoBadge extends StatelessWidget {
   }
 }
 
-/// Icon app (ilustrasi ortu+guru baca laporan, ala ikon aplikasi) —
-/// asetnya sendiri sudah berupa kotak membulat (squircle) dengan
-/// background putih, jadi cukup ditampilkan langsung pakai [ClipRRect]
-/// tanpa dus tambahan. File sama persis dengan yang dipakai buat
-/// launcher icon Android/web, biar brand-nya konsisten di semua tempat.
+/// Icon app (ilustrasi ortu+guru baca laporan, ala ikon aplikasi).
 class AppIconMark extends StatelessWidget {
   final double size;
   final double borderRadius;
@@ -1524,9 +1465,7 @@ class AppIconMark extends StatelessWidget {
   }
 }
 
-/// Satu opsi format export (PDF/Word/Excel) di bottom sheet export —
-/// dipakai [ExportSheet] & [GenerateRekapBulananScreen] (dulu ke-copy
-/// identik di dua tempat, sekarang cukup satu sumber di sini).
+/// Satu opsi format export (PDF/Word/Excel) di bottom sheet export.
 class ExportOptionTile extends StatelessWidget {
   final IconData icon;
   final Color color;

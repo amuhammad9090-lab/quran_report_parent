@@ -5,7 +5,8 @@
 /// package `csv`/`excel`, CSV dibikin manual sebagai string biasa).
 ///
 /// Implementasi beda per platform: browser (web) trigger download file
-/// beneran lewat `dart:html`; platform lain (io) fallback ke clipboard
+/// beneran lewat `package:web` + `dart:js_interop` (bukan `dart:html`
+/// yang sudah deprecated); platform lain (io) fallback ke clipboard
 /// karena portal ini pada praktiknya cuma dijalankan sebagai web app
 /// lewat Firebase Hosting — path `io` jarang kepake, cuma jaga-jaga
 /// biar tidak gagal build kalau suatu saat di-build ke platform lain.

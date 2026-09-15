@@ -6,11 +6,7 @@ import '../../../providers/theme_provider.dart';
 import '../../widgets/misc_widgets.dart';
 
 /// Tab "Pengaturan" — MENGGANTIKAN tab "Profil" yang lama di bottom-nav
-/// (lihat `main_shell.dart`). Isinya SENGAJA cuma preferensi tampilan
-/// aplikasi (tema) + info aplikasi, BUKAN lagi data akun/santri — itu
-/// sekarang ada di `AccountScreen`, diakses lewat tap bulatan akun di
-/// hero Beranda. Pemisahan ini niru pola umum: "Pengaturan" = preferensi
-/// perangkat/aplikasi, "Akun" = identitas & kredensial orang tua.
+/// (lihat `main_shell.dart`).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -138,17 +134,6 @@ class _ThemeModeOption extends StatelessWidget {
 }
 
 /// Kartu info aplikasi — nama, versi, deskripsi singkat, & sekolah.
-///
-/// CATATAN IMPLEMENTASI: nomor versi di bawah ini masih HARDCODE
-/// ('1.0.0') karena `pubspec.yaml` proyek ini tidak ikut diedit di sini
-/// (hanya folder lib/ yang dikelola dari sesi ini). Supaya nomor versi
-/// selalu akurat otomatis ikut `pubspec.yaml`, tinggal:
-///   1) tambah dependency `package_info_plus` di pubspec.yaml, dan
-///   2) ganti `_kAppVersion` di bawah dengan hasil
-///      `PackageInfo.fromPlatform()` (async, bisa di-load di initState
-///      sebuah StatefulWidget kecil pembungkus kartu ini).
-/// Sebelum itu dilakukan, ingat update angka `_kAppVersion` manual tiap
-/// rilis biar tidak menyesatkan orang tua yang mengecek versi aplikasi.
 const _kAppVersion = '1.0.0';
 
 class _AboutAppCard extends StatelessWidget {

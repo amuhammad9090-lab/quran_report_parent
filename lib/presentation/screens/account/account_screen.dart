@@ -19,14 +19,50 @@ import '../../widgets/misc_widgets.dart';
 /// Tetap READ-ONLY terhadap data akademik santri (Nama/Kelas/Halaqoh) —
 /// satu-satunya hal yang BISA diubah orang tua dari sini adalah hal
 /// yang MEMANG milik akun login mereka sendiri: password & foto profil.
+///
+/// --- CATATAN BUG "abis logout, layar nge-blank/pudar sampai di-swipe" ---
+/// `AccountScreen` ini dibuka lewat `Navigator.push` DI ATAS `_AuthGate`
+/// (lihat `app.dart`) — artinya dia jadi route TERPISAH yang numpuk di
+/// atas `MainShell`. `_AuthGate` sendiri cuma widget biasa yang swap
+/// `MainShell` <-> `LoginScreen` berdasarkan `auth.status`, BUKAN lewat
+/// Navigator push/pop — jadi begitu [AuthProvider.logout] dipanggil,
+/// `_AuthGate` di BAWAH langsung ganti ke `LoginScreen`, tapi route
+/// `AccountScreen` di ATASnya TETAP nempel di layar (tidak ke-pop
+/// otomatis oleh apa pun). Orang tua jadi kelihatannya "nyangkut", dan
+/// baru kelihatan pindah ke `LoginScreen` kalau route ini di-pop MANUAL
+/// (mis. swipe-back Android, yang preview animasinya kelihatan pudar/
+/// abu-abu pas transisi — itu Predictive Back bawaan Android, bukan
+/// sesuatu yang dirender aplikasi ini).
+///
+/// FIX: [_confirmLogout] SEKARANG pop route ini balik ke root DULU
+/// (`popUntil((route) => route.isFirst)`), BARU panggil `logout()` —
+/// supaya `_AuthGate` di bawah sudah kelihatan (nge-render `LoginScreen`)
+/// begitu route ini hilang, tanpa perlu swipe manual sama sekali. Kalau
+/// nanti ada layar lain yang di-push via `Navigator.push` di atas
+/// `MainShell`, urutan pop-dulu-baru-logout yang sama ini WAJIB diikuti
+/// di titik logout mana pun (jangan taruh `logout()` sebelum pop).
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final student = auth.currentStudent!;
+    final student = auth.currentStudent;
     final cs = Theme.of(context).colorScheme;
+
+    // Jaring pengaman TAMBAHAN (di luar fix utama di [_confirmLogout]
+    // di atas): kalau karena sebab lain `currentStudent` sempat null
+    // SEMENTARA layar ini masih ke-render (mis. race condition lain di
+    // masa depan), tampilkan spinner sebentar alih-alih crash dengan
+    // null-check operator (`!`) seperti sebelumnya — layar ini akan
+    // langsung ke-pop begitu frame berikutnya jalan (lihat listener di
+    // bawah).
+    if (student == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -117,9 +153,16 @@ class AccountScreen extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true && context.mounted) {
-      context.read<AuthProvider>().logout();
-    }
+    if (confirmed != true || !context.mounted) return;
+
+    // URUTAN INI PENTING — lihat catatan panjang di atas class ini.
+    // Pop DULU balik ke root (lepas route AccountScreen ini dari atas
+    // MainShell), BARU panggil logout(). Kalau dibalik (logout dulu
+    // baru pop), sempat ada 1 frame di mana AuthProvider sudah null-kan
+    // currentStudent SEMENTARA AccountScreen masih jadi route teratas
+    // — itu penyebab bug "layar nyangkut sampai di-swipe manual".
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    context.read<AuthProvider>().logout();
   }
 
   Future<void> _openChangePassword(BuildContext context) async {
@@ -182,6 +225,7 @@ class _AvatarWithEditButtonState extends State<_AvatarWithEditButton> {
       if (picked == null || !mounted) return;
 
       final Uint8List bytes = await picked.readAsBytes();
+      if (!mounted) return;
       setState(() => _busy = true);
       final error = await context.read<AuthProvider>().updateProfilePhoto(bytes);
       if (!mounted) return;

@@ -1,5 +1,3 @@
-// ignore_for_file: unnecessary_const
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -36,26 +34,103 @@ class DashboardScreen extends StatelessWidget {
     final student = context.watch<AuthProvider>().currentStudent!;
     final dash = context.watch<DashboardProvider>();
     final hafalan = context.watch<HafalanProvider>();
+    final photoBase64 = context.watch<AuthProvider>().profilePhotoBase64;
 
     return Scaffold(
       body: SafeArea(
         child: ResponsiveContentWidth(
-          // AnimatedSwitcher: transisi halus skeleton -> konten asli
-          // begitu isLoading selesai, bukan potongan kasar spinner ->
-          // layar penuh.
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 320),
-            child: dash.isLoading
-                ? const _DashboardSkeleton(key: ValueKey('skeleton'))
-                : _DashboardContent(
-                    key: const ValueKey('content'),
-                    student: student,
-                    dash: dash,
-                    hafalan: hafalan,
-                    onSeeAllActivity: onSeeAllActivity,
-                  ),
+          child: Column(
+            children: [
+              _AccountHeaderBar(student: student, photoBase64: photoBase64),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 320),
+                  child: dash.isLoading
+                      ? const _DashboardSkeleton(key: ValueKey('skeleton'))
+                      : _DashboardContent(
+                          key: const ValueKey('content'),
+                          student: student,
+                          dash: dash,
+                          hafalan: hafalan,
+                          onSeeAllActivity: onSeeAllActivity,
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Header identitas santri, statis di atas hero — pola SAMA PERSIS
+/// dengan header Beranda app guru (bulatan akun + "Assalamu'alaikum" +
+/// nama, lihat screenshot referensi yang dikasih user).
+class _AccountHeaderBar extends StatelessWidget {
+  final Student student;
+  final String? photoBase64;
+  const _AccountHeaderBar({required this.student, required this.photoBase64});
+
+  String get _initials {
+    final parts = student.nama.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
+      child: Row(
+        children: [
+          Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AccountScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: ProfileAvatar(
+                  photoBase64: photoBase64,
+                  initials: _initials,
+                  radius: 22,
+                  backgroundColor: cs.primary.withValues(alpha: 0.12),
+                  foregroundColor: cs.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Assalamu'alaikum 👋",
+                  style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant, fontWeight: FontWeight.w400),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  student.nama,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -124,9 +199,6 @@ class _DashboardContent extends StatelessWidget {
                 var i = 0;
                 Widget staggered(Widget child) =>
                     _StaggeredEntrance(index: i++, child: child);
-
-                // Di layar sempit (mobile/tablet potret): 1 kolom, urutan
-                // sesuai brief (progress -> insight -> aktivitas -> catatan).
                 if (constraints.maxWidth < 640) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,11 +220,6 @@ class _DashboardContent extends StatelessWidget {
                   );
                 }
 
-                // Layar lebar (desktop/tablet lanskap, konten sudah dibatasi
-                // ResponsiveContentWidth): 2 kolom — kiri data utama
-                // (progress + aktivitas), kanan pelengkap (insight +
-                // catatan) — supaya layar lebar tidak cuma jadi 1 kolom
-                // sempit yang memanjang ke bawah.
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -333,9 +400,6 @@ class _PulsingBoxState extends State<_PulsingBox>
 // Hero — sapaan + identitas + capaian pekan ini (sama seperti sebelumnya,
 // cuma sekarang jadi bagian dari alur staggered entrance).
 // ---------------------------------------------------------------------
-
-/// 3 mode fokus hero, ditentukan dari status laporan TERAKHIR — lihat
-/// pemakaiannya di [_DashboardHero.build].
 enum HeroFocus { tahfizh, tahsin, murojaah }
 
 class _DashboardHero extends StatelessWidget {
@@ -343,76 +407,19 @@ class _DashboardHero extends StatelessWidget {
   final DashboardProvider dash;
   const _DashboardHero({required this.student, required this.dash});
 
-  String get _greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 11) return 'Selamat Pagi';
-    if (hour < 15) return 'Selamat Siang';
-    if (hour < 18) return 'Selamat Sore';
-    return 'Selamat Malam';
-  }
-
-  String get _initials {
-    final parts = student.nama.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-        .toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     final baris = dash.barisTercapaiPekanIni;
     final target = weeklyTargetBarisForHalaqoh(student.halaqoh);
     final delta = dash.barisDeltaVsPekanLalu;
     final latest = dash.latest;
-    // Foto profil orang tua — lihat catatan lengkap di
-    // `AuthProvider.profilePhotoBase64` & `ProfileAvatar`. Diwatch di
-    // sini (bukan cuma di-read) supaya bulatan akun langsung ter-update
-    // begitu orang tua ganti/hapus foto dari AccountScreen tanpa perlu
-    // pindah tab dulu.
-    final photoBase64 = context.watch<AuthProvider>().profilePhotoBase64;
-    // Mode ditentukan dari STATUS LAPORAN TERAKHIR — 3 mode: Tahsin
-    // (fokus WAFA/Tilawah), Muroja'ah/Tasmi' (fokus ayat yang diulang),
-    // atau default Tahfizh (Tahfizh & Tahsin+Tahfizh — masih ada
-    // progres baris baru yang relevan buat dipamerin gede).
     final HeroFocus focus = switch (latest?.status) {
       HafalanStatus.tahsin => HeroFocus.tahsin,
       HafalanStatus.murojaahTasmi => HeroFocus.murojaah,
       _ => HeroFocus.tahfizh,
     };
     return WelcomeHeroCard(
-      eyebrow: "Assalamu'alaikum, $_greeting 👋",
-      title: student.nama,
-      subtitle: 'Kelas ${student.kelas} • Halaqoh ${student.halaqoh}',
-      // Saran copy singkat ala tagline hero app guru ("Kelola laporan
-      // Tahsin & Tahfizh santri dengan mudah dan terstruktur.") — versi
-      // orang tua, fokus ke "pantau", bukan "kelola" (portal ini
-      // read-only).
       tagline: "Pantau perkembangan Tahsin, Tahfizh, dan Muroja'ah ananda 📖",
-      // Bulatan akun sekarang jadi PINTU MASUK ke AccountScreen (data
-      // santri, ganti password, foto profil, logout) — menggantikan tab
-      // "Profil" yang lama (lihat catatan di `main_shell.dart`, tab itu
-      // sekarang jadi "Pengaturan" isinya cuma tema+tentang aplikasi).
-      leading: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AccountScreen()),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(2),
-            child: ProfileAvatar(
-              photoBase64: photoBase64,
-              initials: _initials,
-              radius: 24,
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-      ),
       weeklyRecap: dash.records.isEmpty
           ? null
           : Column(
@@ -434,10 +441,6 @@ class _DashboardHero extends StatelessWidget {
                         letterSpacing: 0.6,
                       ),
                     ),
-                    // Delta cuma relevan buat progres baris Tahfizh —
-                    // disembunyikan di mode Tahsin/Muroja'ah biar nggak
-                    // nyesatkan (delta itu selisih baris, bukan progres
-                    // Tahsin/Muroja'ah).
                     if (focus == HeroFocus.tahfizh && delta != null) ...[
                       const SizedBox(width: 8),
                       _DeltaPill(delta: delta),
@@ -445,25 +448,14 @@ class _DashboardHero extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Kiri (Kehadiran) & kanan (capaian, isinya tuker sesuai
-                // mode) dibikin sama besar (Expanded flex 1:1 + tinggi
-                // disamain lewat IntrinsicHeight+stretch) biar simetris —
-                // sebelumnya kanan ngikut lebar & tinggi konten doang, jadi
-                // kelihatan pincang.
                 IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Kehadiran digabung ke hero (bukan kartu terpisah lagi) —
-                      // selalu tampil di slot kiri terlepas dari mode fokus, karena
-                      // ini metrik independen (rasio hadir sepanjang riwayat), bukan
-                      // bagian dari capaian pekan ini di kanan.
                       Expanded(child: _KehadiranMiniStat(dash: dash)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: switch (focus) {
-                          // `!` aman: latest dipastikan non-null oleh switch
-                          // status di atas kalau focus bukan tahfizh.
                           HeroFocus.tahsin => _TahsinBigCard(record: latest!),
                           HeroFocus.murojaah =>
                             _MurojaahBigCard(record: latest!),
@@ -481,12 +473,7 @@ class _DashboardHero extends StatelessWidget {
 }
 
 /// Kartu Kehadiran — digabung ke hero (bukan kartu ringkasan terpisah lagi),
-/// selalu jadi slot kiri hero apapun mode fokusnya. Gaya vertikal (ikon di
-/// kotak lembut di atas, angka besar, label di bawah) mengikuti model
-/// "ringkasan angka" dari ss app guru, cuma diadaptasi ke tema translucent
-/// hero (bukan niru warna/tulisan appnya). Tap buka rincian Hadir/Sakit/
-/// Izin/dll — logic sama seperti sebelumnya (DashboardProvider.
-/// keteranganDistribution).
+/// selalu jadi slot kiri hero apapun mode fokusnya.
 class _KehadiranMiniStat extends StatelessWidget {
   final DashboardProvider dash;
   const _KehadiranMiniStat({required this.dash});
@@ -537,9 +524,6 @@ class _HeroIconBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // Dikecilkan dikit dari sebelumnya (padding 8 -> 6, icon 15 -> 13)
-      // sesuai permintaan — pill kehadiran & capaian tetap sama
-      // strukturnya, cuma dibikin lebih ringkas.
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.16),
@@ -559,8 +543,6 @@ abstract class _HeroStatBox {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
       );
-  // Dikecilkan dikit (17 -> 15) sesuai permintaan, tetap w800 biar angka
-  // capaiannya masih jadi focal point hero.
   static const valueStyle = TextStyle(
       color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800);
   static TextStyle get labelStyle => TextStyle(
@@ -572,10 +554,7 @@ abstract class _HeroStatBox {
 }
 
 /// Kartu capaian — angka baris Tahfizh pekan ini vs target, jadi focal
-/// point hero saat mode Tahfizh. Diekstrak jadi widget sendiri (sebelumnya
-/// inline) supaya [_DashboardHero.build] tetap gampang dibaca sekarang ada
-/// 2 mode yang saling tuker isi. Gaya translucent sama kayak
-/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+/// point hero saat mode Tahfizh.
 class _BarisBigPill extends StatelessWidget {
   final int baris;
   final int? target;
@@ -618,8 +597,7 @@ class _BarisBigPill extends StatelessWidget {
 
 /// Kartu — ringkasan Tahsin (WAFA level+halaman ATAU Tilawah surah+ayat,
 /// otomatis sesuai [record.tahsinMode]) jadi focal point hero saat laporan
-/// terakhir statusnya Tahsin. Gaya translucent sama kayak
-/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+/// terakhir statusnya Tahsin.
 class _TahsinBigCard extends StatelessWidget {
   final SantriRecord record;
   const _TahsinBigCard({required this.record});
@@ -661,10 +639,7 @@ class _TahsinBigCard extends StatelessWidget {
 /// Beda dari [_TahsinBigCard]: Muroja'ah punya satuan yang gampang
 /// dihitung (ayat yang diulang, [SantriRecord.jumlahAyat]), jadi angkanya
 /// dipakai sebagai fokus utama (mirip [_BarisBigPill]), dengan surah+ayat
-/// ([record.murojaahSummaryText]) sebagai label. Fallback ke tampilan
-/// teks-saja (seperti [_TahsinBigCard]) kalau entah kenapa jumlahAyat-nya
-/// 0 (data lama/tidak lengkap). Gaya translucent sama kayak
-/// [_KehadiranMiniStat] (lihat [_HeroStatBox]) — bukan pill putih lagi.
+/// ([record.murojaahSummaryText]) sebagai label.
 class _MurojaahBigCard extends StatelessWidget {
   final SantriRecord record;
   const _MurojaahBigCard({required this.record});
@@ -782,9 +757,7 @@ class _NoRecordsCard extends StatelessWidget {
 }
 
 /// Rincian kehadiran (Hadir/Sakit/Izin/Tdk Setoran/dll) sepanjang riwayat
-/// — dibuka dari tap item "Kehadiran". Logic dipertahankan apa adanya dari
-/// versi sebelum dipindah ke tab Perkembangan (DashboardProvider.
-/// keteranganDistribution).
+/// — dibuka dari tap item "Kehadiran".
 void _showKehadiranDetail(BuildContext context, DashboardProvider dash) {
   final dist = dash.keteranganDistribution;
   final total = dash.records.length;
@@ -889,9 +862,6 @@ class _ProgressHafalanSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Label ikut isi kartu di bawahnya — kalau belum ada juz Tahfizh
-        // yang tersentuh dan yang tampil cuma _TahsinCard, judul "Progress
-        // Hafalan" rancu (hafalan = hafalan baru/Tahfizh, bukan Tahsin).
         SectionLabel(primary != null ? 'Progress Hafalan' : 'Progress Tahsin'),
         if (primary != null) ...[
           Card(
@@ -1431,14 +1401,7 @@ class _CatatanGuruSection extends StatelessWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       // PENTING: showModalBottomSheet push route BARU ke root Navigator,
       // yang levelnya di ATAS MultiProvider (MultiProvider dibuat di
-      // dalam MainShell, bukan membungkus MaterialApp/Navigator) — jadi
-      // konten sheet baru TIDAK otomatis bisa context.watch<...>() ke
-      // provider manapun. ChangeNotifierProvider.value di sini
-      // menyediakan ULANG instance `notes` yang SAMA (bukan bikin baru)
-      // ke subtree sheet, supaya _ReplyComposerSheet bisa watch seperti
-      // biasa. Tanpa ini, tap "Balas Catatan" bikin sheet kosong/abu-abu
-      // (ProviderNotFoundException, cuma tidak kelihatan pesannya di
-      // build release).
+      // dalam MainShell, bukan membungkus MaterialApp/Navigator)
       builder: (ctx) => ChangeNotifierProvider.value(
         value: notes,
         child: _ReplyComposerSheet(latestRecord: latestRecord),

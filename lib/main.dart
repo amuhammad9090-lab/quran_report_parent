@@ -27,6 +27,8 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting('id_ID', null);
   await QuranEngineService.instance.load();
+
+  GoogleFonts.plusJakartaSans();
   await GoogleFonts.pendingFonts();
 
   final studentRepository = FirestoreStudentRepository(schoolId: kSchoolId);

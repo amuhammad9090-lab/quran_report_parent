@@ -30,6 +30,9 @@ dependencies:
   # --- Image ---
   image_picker: ^1.1.2
 
+  # --- Web ---
+  web: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -38,6 +41,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/data/
+    - assets/data/quran_line_dataset_juz1-10_juz26-30_schema.json
     - assets/images/app_icon.png
     - assets/images/logo_smpit.png
