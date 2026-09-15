@@ -159,7 +159,7 @@ class _DashboardContent extends StatelessWidget {
             hasScrollBody: false,
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(24),
                 child: EmptyState(
                   icon: Icons.wifi_off_rounded,
                   title: 'Gagal memuat data',
