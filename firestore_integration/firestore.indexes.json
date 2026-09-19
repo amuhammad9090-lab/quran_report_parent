@@ -4,18 +4,20 @@
       "collectionGroup": "santriRecords",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "namaAnak", "order": "ASCENDING" },
         { "fieldPath": "kelas", "order": "ASCENDING" },
         { "fieldPath": "halaqoh", "order": "ASCENDING" },
-        { "fieldPath": "namaAnak", "order": "ASCENDING" },
         { "fieldPath": "tanggal", "order": "DESCENDING" }
       ]
     },
     {
-      "collectionGroup": "parentNotes",
+      "collectionGroup": "weeklyRecaps",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "studentId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        { "fieldPath": "kelas", "order": "ASCENDING" },
+        { "fieldPath": "halaqoh", "order": "ASCENDING" },
+        { "fieldPath": "namaAnakLower", "order": "ASCENDING" },
+        { "fieldPath": "deployedAt", "order": "DESCENDING" }
       ]
     }
   ],

@@ -1040,6 +1040,21 @@ class RecordSummaryRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        // <-- BARU: cuplikan catatan di atas kepotong 1
+                        // baris + italic — dari tampilannya doang, ortu
+                        // gak ada tanda kalau itu bisa di-tap buat baca
+                        // lengkap (dikira cuma teks biasa). Label kecil
+                        // ini nunjukkin ada isi lebih lanjut yang bisa
+                        // dibuka.
+                        Text(
+                          'Selengkapnya',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
                       ],
                     ),
                   ],

@@ -1300,8 +1300,17 @@ class _CatatanGuruSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final notes = context.watch<ParentNoteProvider>();
-    final recordWithCatatan = dash.latestRecordWithCatatan;
-    final catatan = recordWithCatatan?.catatan;
+    // <-- BERUBAH: dulu pakai `dash.latestRecordWithCatatan`, yang
+    // nyari MUNDUR ke laporan mana pun (bisa berhari-hari lalu) yang
+    // kebetulan ada catatannya. Efeknya ortu bisa disangka lagi lihat
+    // catatan HARI INI padahal itu catatan lama, dan tombol "Balas
+    // Catatan" di bawahnya makin nguatin kesan salah itu (dikira ada
+    // percakapan aktif). Sekarang selalu merujuk ke LAPORAN TERAKHIR
+    // (`dash.latest`) — kalau laporan itu memang tidak ada catatannya,
+    // tampilkan kosong + indikator jelas, BUKAN diam-diam nampilin
+    // catatan lama tanpa konteks.
+    final latestRecord = dash.latest;
+    final catatan = latestRecord?.catatan;
     final hasCatatan = catatan != null && catatan.trim().isNotEmpty;
     final cs = Theme.of(context).colorScheme;
 
@@ -1318,20 +1327,28 @@ class _CatatanGuruSection extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SoftIconBox(icon: Icons.forum_rounded, color: cs.primary),
+                    SoftIconBox(
+                      icon: hasCatatan ? Icons.forum_rounded : Icons.forum_outlined,
+                      color: hasCatatan ? cs.primary : cs.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (hasCatatan && recordWithCatatan != null) ...[
+                          // Tanggal SELALU ditampilkan kalau ada laporan
+                          // terakhir — baik ada catatannya maupun
+                          // tidak — sesuai kebiasaan tampilan yang
+                          // sudah ada, cuma sekarang jujur soal
+                          // laporan tanggal berapa yang lagi ditunjuk.
+                          if (latestRecord != null) ...[
                             Text(
                               DateFormat('EEEE, d MMMM yyyy', 'id_ID')
-                                  .format(recordWithCatatan.tanggal),
+                                  .format(latestRecord.tanggal),
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
-                                color: cs.primary,
+                                color: hasCatatan ? cs.primary : cs.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1339,7 +1356,9 @@ class _CatatanGuruSection extends StatelessWidget {
                           Text(
                             hasCatatan
                                 ? catatan
-                                : 'Belum ada catatan dari guru pembimbing.',
+                                : (latestRecord == null
+                                    ? 'Belum ada laporan dari guru pembimbing.'
+                                    : 'Tidak ada catatan dari guru untuk laporan ini.'),
                             style: TextStyle(
                               fontSize: 13.5,
                               height: 1.5,

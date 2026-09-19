@@ -107,9 +107,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // `dash.records` (bukan `filtered`/periode UI), supaya filter
     // periode di atas tidak ikut mempengaruhi validitas kartu rekap.
     final liveReportDates = dash.records.map((r) => r.tanggal).toList();
-    final visibleRecaps = weeklyRecaps.recaps
+    // Pasangan tanggal+createdAt dipakai `weeklyRecapIsOutdated` untuk
+    // mendeteksi rekap yang di-deploy SEBELUM koreksi terakhir guru.
+    final liveReportTimes = dash.records
+        .map((r) => (tanggal: r.tanggal, createdAt: r.createdAt))
+        .toList();
+    // Urutan penting: dedupe DULU (buang versi lama dari pekan yang
+    // sama kalau guru deploy berkali-kali), BARU buang yang laporannya
+    // sudah terhapus semua. Kalau dibalik, versi lama bisa lolos.
+    final visibleRecaps = dedupeWeeklyRecaps(weeklyRecaps.recaps)
         .where((r) => !weeklyRecapIsLikelyStale(r, liveReportDates))
         .toList();
+    final outdatedRecapIds = visibleRecaps
+        .where((r) => weeklyRecapIsOutdated(r, liveReportTimes))
+        .map((r) => r.id)
+        .toSet();
 
     return Scaffold(
       appBar: AppBar(
@@ -136,7 +148,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
               // baru/opsional ini; daftar harian di bawah tetap jadi
               // fokus utama halaman.
               if (weeklyRecaps.isLoading || visibleRecaps.isNotEmpty)
-                _WeeklyRecapSection(provider: weeklyRecaps, visibleRecaps: visibleRecaps),
+                _WeeklyRecapSection(
+                  provider: weeklyRecaps,
+                  visibleRecaps: visibleRecaps,
+                  outdatedRecapIds: outdatedRecapIds,
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 10, 18, 4),
                 child: SizedBox(
@@ -299,7 +315,13 @@ class _WeeklyRecapSection extends StatelessWidget {
   // `WeeklyRecap`), dihitung sekali di `_HistoryScreenState.build`
   // supaya tidak dihitung ulang tiap rebuild section ini.
   final List<WeeklyRecap> visibleRecaps;
-  const _WeeklyRecapSection({required this.provider, required this.visibleRecaps});
+  /// Id rekap yang terdeteksi kedaluwarsa — lihat `weeklyRecapIsOutdated`.
+  final Set<String> outdatedRecapIds;
+  const _WeeklyRecapSection({
+    required this.provider,
+    required this.visibleRecaps,
+    required this.outdatedRecapIds,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +354,10 @@ class _WeeklyRecapSection extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: visibleRecaps.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (context, i) => _WeeklyRecapCard(recap: visibleRecaps[i]),
+                itemBuilder: (context, i) => _WeeklyRecapCard(
+                  recap: visibleRecaps[i],
+                  isOutdated: outdatedRecapIds.contains(visibleRecaps[i].id),
+                ),
               ),
             ),
           const SizedBox(height: 6),
@@ -344,7 +369,8 @@ class _WeeklyRecapSection extends StatelessWidget {
 
 class _WeeklyRecapCard extends StatelessWidget {
   final WeeklyRecap recap;
-  const _WeeklyRecapCard({required this.recap});
+  final bool isOutdated;
+  const _WeeklyRecapCard({required this.recap, required this.isOutdated});
 
   @override
   Widget build(BuildContext context) {
@@ -374,27 +400,55 @@ class _WeeklyRecapCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const Spacer(),
-                Row(
-                  children: [
-                    Icon(Icons.menu_book_rounded, size: 13, color: cs.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recap.totalBaris} baris',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+                // <-- BERUBAH: "0 baris" cuma bener buat pekan yang
+                // capaiannya Tahfizh (baris = ayat baru dihafal). Kalau
+                // pekan itu isinya Tahsin/Muroja'ah doang, totalBaris
+                // MEMANG 0 secara wajar — nampilinnya sebagai "0 baris"
+                // kelihatan kayak "gak ada progress sama sekali", padahal
+                // progresnya cuma diukur bukan pakai satuan baris. Jadi
+                // baris ini disembunyikan total kalau totalBaris == 0,
+                // biar gak menyesatkan.
+                if (recap.totalBaris > 0)
+                  Row(
+                    children: [
+                      Icon(Icons.menu_book_rounded, size: 13, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${recap.totalBaris} baris',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(Icons.touch_app_rounded, size: 12, color: cs.primary.withValues(alpha: 0.7)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Lihat detail',
-                      style: TextStyle(fontSize: 10.5, color: cs.primary.withValues(alpha: 0.85)),
-                    ),
-                  ],
-                ),
+                if (isOutdated)
+                  // Badge kecil — jangan sembunyikan kartunya, karena
+                  // catatan guru di dalamnya tetap berguna; cukup beri
+                  // tahu bahwa angkanya belum diperbarui.
+                  Row(
+                    children: [
+                      Icon(Icons.update_rounded, size: 12, color: cs.tertiary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Belum diperbarui',
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: cs.tertiary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Icon(Icons.touch_app_rounded, size: 12, color: cs.primary.withValues(alpha: 0.7)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Lihat detail',
+                        style: TextStyle(fontSize: 10.5, color: cs.primary.withValues(alpha: 0.85)),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -410,14 +464,15 @@ class _WeeklyRecapCard extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => _WeeklyRecapDetailSheet(recap: r),
+      builder: (ctx) => _WeeklyRecapDetailSheet(recap: r, isOutdated: isOutdated),
     );
   }
 }
 
 class _WeeklyRecapDetailSheet extends StatelessWidget {
   final WeeklyRecap recap;
-  const _WeeklyRecapDetailSheet({required this.recap});
+  final bool isOutdated;
+  const _WeeklyRecapDetailSheet({required this.recap, required this.isOutdated});
 
   @override
   Widget build(BuildContext context) {
@@ -450,6 +505,37 @@ class _WeeklyRecapDetailSheet extends StatelessWidget {
               style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 18),
+            if (isOutdated) ...[
+              // Peringatan JUJUR, bukan menyembunyikan data: isi rekap
+              // di bawah adalah snapshot lama buatan guru, sementara
+              // daftar laporan harian di layar belakang sudah versi
+              // terbaru. Portal ini read-only jadi tidak menghitung
+              // ulang sendiri — lihat `weeklyRecapIsOutdated`.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.tertiaryContainer.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.update_rounded, size: 17, color: cs.tertiary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Rekap ini dibuat sebelum laporan harian terakhir '
+                        'diperbarui guru, jadi angkanya mungkin belum sesuai. '
+                        'Daftar laporan harian di halaman ini yang paling baru.',
+                        style: TextStyle(fontSize: 12.5, height: 1.45, color: cs.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             _detailRow(context, 'Capaian', recap.capaian),
             if (recap.keterangan.trim().isNotEmpty) ...[
               const SizedBox(height: 14),
@@ -459,17 +545,22 @@ class _WeeklyRecapDetailSheet extends StatelessWidget {
               const SizedBox(height: 14),
               _detailRow(context, 'Catatan Guru', recap.catatan),
             ],
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Icon(Icons.menu_book_rounded, size: 15, color: cs.onSurfaceVariant),
-                const SizedBox(width: 6),
-                Text(
-                  'Total ${recap.totalBaris} baris sepekan',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
+            // Sama seperti mini card: sembunyikan total (+ gap-nya)
+            // kalau memang 0 (pekan Tahsin/Muroja'ah doang) — lihat
+            // catatan panjang di widget kartu mini-nya.
+            if (recap.totalBaris > 0) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.menu_book_rounded, size: 15, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Total ${recap.totalBaris} baris sepekan',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ],
             if ((recap.guruPembimbing ?? '').trim().isNotEmpty) ...[
               const SizedBox(height: 6),
               Row(

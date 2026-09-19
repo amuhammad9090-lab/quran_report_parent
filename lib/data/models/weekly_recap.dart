@@ -143,3 +143,90 @@ bool weeklyRecapIsLikelyStale(WeeklyRecap recap, List<DateTime> liveReportDates)
 
   return !anyReportStillExists;
 }
+
+/// --- DEDUPE: 1 pekan = 1 kartu ---
+///
+/// Kalau guru men-deploy ulang pekan yang SAMA (mis. setelah mengoreksi
+/// laporan), app guru bisa menghasilkan dokumen `weeklyRecaps` BARU
+/// alih-alih menimpa yang lama — hasilnya ada >1 dokumen untuk pekan
+/// yang sama, dan portal ini bisa menampilkan versi lama. [items]
+/// dikelompokkan per identitas pekan (weekIndex + bulanLabel), lalu
+/// HANYA versi dengan `deployedAt` PALING BARU yang dipakai. Dokumen
+/// tanpa `deployedAt` (null) dianggap paling lama.
+///
+/// Ini jaring pengaman sisi-baca, BUKAN pengganti fix di app guru:
+/// idealnya `WeeklyRecapDeployService` memakai doc ID deterministik
+/// (mis. `{kelas}_{halaqoh}_{namaAnakLower}_{bulan}_{weekIndex}`) supaya
+/// deploy ulang OTOMATIS menimpa dokumen lama, bukan menumpuk.
+List<WeeklyRecap> dedupeWeeklyRecaps(List<WeeklyRecap> items) {
+  final newestPerWeek = <String, WeeklyRecap>{};
+  for (final r in items) {
+    final key = '${r.weekIndex}|${r.bulanLabel.trim().toLowerCase()}';
+    final existing = newestPerWeek[key];
+    if (existing == null) {
+      newestPerWeek[key] = r;
+      continue;
+    }
+    final a = r.deployedAt;
+    final b = existing.deployedAt;
+    if (b == null && a != null) newestPerWeek[key] = r;
+    if (a != null && b != null && a.isAfter(b)) newestPerWeek[key] = r;
+  }
+
+  final result = newestPerWeek.values.toList();
+  // Urutkan ulang: pekan terbaru duluan (deployedAt desc, fallback
+  // weekIndex desc) — `orderBy` di Firestore sudah begitu, tapi
+  // pengelompokan di atas tidak menjamin urutannya tetap.
+  result.sort((x, y) {
+    final dx = x.deployedAt;
+    final dy = y.deployedAt;
+    if (dx != null && dy != null) return dy.compareTo(dx);
+    return y.weekIndex.compareTo(x.weekIndex);
+  });
+  return result;
+}
+
+/// --- OUTDATED: isi rekap sudah tidak cocok dengan laporan harian ---
+///
+/// Beda dengan [weeklyRecapIsLikelyStale] (yang cuma menangkap kasus
+/// SEMUA laporan sepekan sudah dihapus), fungsi ini menangkap kasus
+/// yang jauh lebih sering: guru MENGOREKSI/menambah laporan harian
+/// SETELAH rekap pekan itu ter-deploy, tanpa men-deploy ulang. Isi
+/// snapshot rekap (capaian/total baris/keterangan) jadi bercerita beda
+/// dengan daftar laporan harian di layar yang sama — persis kasus yang
+/// ditemukan saat pengetesan: kartu rekap menampilkan capaian versi
+/// lama padahal laporan harian di bawahnya sudah versi terbaru.
+///
+/// Dideteksi murni dari waktu: kalau ADA laporan harian di dalam rentang
+/// [WeeklyRecap.weekStart]–[WeeklyRecap.weekEnd] yang `createdAt`-nya
+/// LEBIH BARU daripada `deployedAt` rekap, berarti rekap ini dibuat
+/// sebelum koreksi terakhir → sudah kedaluwarsa.
+///
+/// Sengaja TIDAK mencoba menghitung ulang capaian sendiri: catatan &
+/// penilaian di rekap itu karya guru, portal ini read-only dan tidak
+/// berhak mengarang isinya. Yang dilakukan cuma MENANDAI supaya orang
+/// tua tahu angkanya belum diperbarui.
+///
+/// Konservatif: kalau info waktunya tidak lengkap (weekStart/weekEnd
+/// atau deployedAt null, atau laporan tanpa createdAt), return false —
+/// lebih baik tidak menandai daripada salah menandai.
+bool weeklyRecapIsOutdated(
+  WeeklyRecap recap,
+  List<({DateTime tanggal, DateTime? createdAt})> liveReports,
+) {
+  final start = recap.weekStart;
+  final end = recap.weekEnd;
+  final deployedAt = recap.deployedAt;
+  if (start == null || end == null || deployedAt == null) return false;
+
+  final startDay = DateTime(start.year, start.month, start.day);
+  final endDay = DateTime(end.year, end.month, end.day);
+
+  return liveReports.any((r) {
+    final created = r.createdAt;
+    if (created == null) return false;
+    final day = DateTime(r.tanggal.year, r.tanggal.month, r.tanggal.day);
+    final inWeek = !day.isBefore(startDay) && !day.isAfter(endDay);
+    return inWeek && created.isAfter(deployedAt);
+  });
+}
