@@ -6,7 +6,15 @@ import '../../models/parent_note.dart';
 import '../../models/student.dart';
 import '../parent_note_repository.dart';
 
-/// Baca/tulis `schools/{schoolId}/parentNotes/{id}`.
+/// Baca/tulis `schools/{schoolId}/accounts/{guruAccountId}/parentNotes/{id}`.
+///
+/// BERUBAH (migrasi skema nested per-guru): dulu flat di
+/// `schools/{schoolId}/parentNotes`. Koleksi flat itu sudah tidak ada
+/// match block-nya lagi di firestore.rules sisi app guru (cuma
+/// `accounts/{accountId}/parentNotes` yang diizinkan sekarang), jadi
+/// kirim catatan ke path lama selalu permission-denied — ini penyebab
+/// "parent notes gak nyambung". [Student.guruAccountId] menentukan
+/// subcollection guru pembimbing santri ini.
 ///
 /// Ini SATU-SATUNYA repository di portal orang tua yang benar-benar
 /// menulis ke Firestore (bandingkan dengan `firestore_report_repository.dart`
@@ -32,8 +40,17 @@ class FirestoreParentNoteRepository implements ParentNoteRepository {
   FirestoreParentNoteRepository({required this.schoolId, FirebaseFirestore? db})
       : _db = db ?? FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('schools').doc(schoolId).collection('parentNotes');
+  CollectionReference<Map<String, dynamic>> _col(String guruAccountId) => _db
+      .collection('schools')
+      .doc(schoolId)
+      .collection('accounts')
+      .doc(guruAccountId)
+      .collection('parentNotes');
+
+  Never _missingAccountId(Student student) => throw StateError(
+        'Student ${student.id} (${student.nama}) belum punya guruAccountId — '
+        'tidak bisa resolve subcollection parentNotes guru pembimbingnya.',
+      );
 
   @override
   Future<void> send({
@@ -44,7 +61,10 @@ class FirestoreParentNoteRepository implements ParentNoteRepository {
     final trimmed = message.trim();
     if (trimmed.isEmpty) return;
 
-    await _col.add({
+    final accountId = student.guruAccountId;
+    if (accountId == null) _missingAccountId(student);
+
+    await _col(accountId).add({
       'studentId': student.id,
       'namaAnak': student.nama,
       'kelas': student.kelas,
@@ -63,7 +83,10 @@ class FirestoreParentNoteRepository implements ParentNoteRepository {
 
   @override
   Future<List<ParentNote>> getRecentForStudent(Student student, {int limit = 5}) async {
-    final snap = await _col
+    final accountId = student.guruAccountId;
+    if (accountId == null) _missingAccountId(student);
+
+    final snap = await _col(accountId)
         .where('studentId', isEqualTo: student.id)
         .orderBy('createdAt', descending: true)
         .limit(limit)

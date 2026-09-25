@@ -15,12 +15,25 @@ class Student {
   /// ini tetap terbaca (null = sekolah default/tunggal).
   final String? schoolId;
 
+  /// BARU (migrasi skema nested per-guru): id akun guru pembimbing yang
+  /// megang kelas+halaqoh santri ini. Ditulis oleh app guru
+  /// (ApiStudentRepository) di dokumen `students/{id}` sejak data guru
+  /// dipindah dari koleksi flat (`schools/{schoolId}/santriRecords` dkk)
+  /// ke nested `schools/{schoolId}/accounts/{guruAccountId}/...`. WAJIB
+  /// ada supaya Portal Ortu tahu subcollection guru mana yang harus
+  /// dibaca/ditulis untuk santri ini — lihat firestore.rules & repo-repo
+  /// di data/repositories/firestore/. Null = data lama / belum ke-assign
+  /// guru (repo yang butuh ini akan gagal-jelas, bukan diam-diam salah
+  /// akun, lihat masing-masing repo).
+  final String? guruAccountId;
+
   const Student({
     required this.id,
     required this.nama,
     required this.kelas,
     required this.halaqoh,
     this.schoolId,
+    this.guruAccountId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +42,7 @@ class Student {
         'kelas': kelas,
         'halaqoh': halaqoh,
         'schoolId': schoolId,
+        'guruAccountId': guruAccountId,
       };
 
   factory Student.fromJson(Map<String, dynamic> json) => Student(
@@ -37,5 +51,6 @@ class Student {
         kelas: json['kelas'] as String,
         halaqoh: normalizeHalaqoh(json['halaqoh'] as String),
         schoolId: json['schoolId'] as String?,
+        guruAccountId: json['guruAccountId'] as String?,
       );
 }

@@ -8,7 +8,15 @@ import '../../models/santri_record.dart';
 import '../../models/student.dart';
 import '../../repositories/report_repository.dart';
 
-/// Baca [SantriRecord] dari `schools/{schoolId}/santriRecords/{id}`.
+/// Baca [SantriRecord] dari `schools/{schoolId}/accounts/{guruAccountId}/laporan/{id}`.
+///
+/// BERUBAH (migrasi skema nested per-guru, sinkron dengan app guru &
+/// firestore.rules): dulu flat di `schools/{schoolId}/santriRecords`.
+/// Koleksi flat itu SUDAH DIHAPUS dari firestore.rules sisi app guru,
+/// jadi kalau repo ini masih baca dari situ hasilnya permission-denied
+/// ("Gagal memuat data") — bukan soal koneksi. [Student.guruAccountId]
+/// (ditulis app guru di dokumen `students/{id}`) menentukan subcollection
+/// guru mana yang harus dibaca.
 ///
 /// PENTING (sesuai aturan keamanan brief): query di-filter di level
 /// Firestore lewat `.where(...)` — BUKAN ambil semua lalu filter di
@@ -26,11 +34,27 @@ class FirestoreReportRepository implements ReportRepository {
   FirestoreReportRepository({required this.schoolId, FirebaseFirestore? db})
       : _db = db ?? FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _db.collection('schools').doc(schoolId).collection('santriRecords');
+  CollectionReference<Map<String, dynamic>> _col(String guruAccountId) => _db
+      .collection('schools')
+      .doc(schoolId)
+      .collection('accounts')
+      .doc(guruAccountId)
+      .collection('laporan');
+
+  /// Guru pembimbing untuk santri ini belum ke-assign
+  /// ([Student.guruAccountId] null) — gagal jelas, bukan diam-diam baca
+  /// koleksi kosong/salah.
+  Never _missingAccountId(Student student) => throw StateError(
+        'Student ${student.id} (${student.nama}) belum punya guruAccountId — '
+        'guru pembimbing untuk kelas ${student.kelas}/halaqoh ${student.halaqoh} '
+        'belum ke-assign di app guru.',
+      );
 
   @override
   Future<List<SantriRecord>> getRecordsForStudent(Student student) async {
+    final accountId = student.guruAccountId;
+    if (accountId == null) _missingAccountId(student);
+    final col = _col(accountId);
     // Firestore butuh exact-match string untuk .where() — namaAnak
     // dibandingkan case-sensitive di query (beda dari MockReportRepository
     // yang case-insensitive di Dart). Kalau nanti ada mismatch kapitalisasi
@@ -46,7 +70,7 @@ class FirestoreReportRepository implements ReportRepository {
     // .get(const GetOptions(source: Source.server)) — <-- BARU juga,
     // maksa ambil dari server (bukan diam-diam nunggu cache lokal yang
     // mungkin belum ke-sync).
-    final snap = await _col
+    final snap = await col
         .where('kelas', isEqualTo: student.kelas)
         .where('halaqoh', isEqualTo: student.halaqoh)
         .where('namaAnak', isEqualTo: student.nama)
@@ -73,7 +97,9 @@ class FirestoreReportRepository implements ReportRepository {
     // supaya tidak emit dua kali untuk 1 perubahan yang sama (sekali dari
     // cache lokal, sekali konfirmasi server) — cukup 1 emit begitu server
     // konfirmasi.
-    return _col
+    final accountId = student.guruAccountId;
+    if (accountId == null) _missingAccountId(student);
+    return _col(accountId)
         .where('kelas', isEqualTo: student.kelas)
         .where('halaqoh', isEqualTo: student.halaqoh)
         .where('namaAnak', isEqualTo: student.nama)
