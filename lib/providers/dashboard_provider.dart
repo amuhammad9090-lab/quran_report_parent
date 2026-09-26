@@ -17,12 +17,26 @@ class DashboardProvider extends ChangeNotifier {
 
   bool isLoading = false;
   String? error;
+  // <-- BARU: exception ASLI (bukan cuma `.toString()`-nya di [error])
+  // supaya UI (`dashboard_screen.dart`) bisa cek TIPE errornya secara
+  // type-safe lewat [isGuruBelumDitugaskan] — perlu buat bedain "guru
+  // pembimbing belum di-assign" (bukan salah orang tua, gak ada yang
+  // bisa mereka lakukan selain hubungi sekolah) dari error koneksi biasa
+  // (yang masih relevan disuruh "coba lagi").
+  Object? rawError;
   List<SantriRecord> records = [];
   StreamSubscription<List<SantriRecord>>? _subscription;
+
+  /// True kalau [error] sekarang ini spesifik karena guru pembimbing
+  /// santri belum ditugaskan di app guru ([GuruBelumDitugaskanException])
+  /// — bukan gangguan koneksi/server biasa. Dipakai `dashboard_screen.dart`
+  /// buat milih pesan yang akurat.
+  bool get isGuruBelumDitugaskan => rawError is GuruBelumDitugaskanException;
 
   Future<void> load(Student student) {
     isLoading = true;
     error = null;
+    rawError = null;
     notifyListeners();
 
     final completer = Completer<void>();
@@ -32,12 +46,14 @@ class DashboardProvider extends ChangeNotifier {
         records = data;
         isLoading = false;
         error = null;
+        rawError = null;
         notifyListeners();
         if (!completer.isCompleted) completer.complete();
       },
       onError: (Object e, StackTrace st) {
         debugPrint('DashboardProvider.load GAGAL: $e\n$st');
         error = e.toString();
+        rawError = e;
         records = [];
         isLoading = false;
         notifyListeners();
@@ -46,6 +62,7 @@ class DashboardProvider extends ChangeNotifier {
     );
     return completer.future;
   }
+
 
   @override
   void dispose() {

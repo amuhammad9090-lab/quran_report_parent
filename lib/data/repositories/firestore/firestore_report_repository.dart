@@ -44,16 +44,31 @@ class FirestoreReportRepository implements ReportRepository {
   /// Guru pembimbing untuk santri ini belum ke-assign
   /// ([Student.guruAccountId] null) — gagal jelas, bukan diam-diam baca
   /// koleksi kosong/salah.
-  Never _missingAccountId(Student student) => throw StateError(
-        'Student ${student.id} (${student.nama}) belum punya guruAccountId — '
-        'guru pembimbing untuk kelas ${student.kelas}/halaqoh ${student.halaqoh} '
-        'belum ke-assign di app guru.',
-      );
+  ///
+  /// PENTING: ini cuma BIKIN objek exception-nya (tidak throw langsung),
+  /// beda dari sebelumnya. Alasannya ada di [watchRecordsForStudent] —
+  /// intinya method itu bukan `async`, jadi `throw` langsung di badannya
+  /// meledak SAAT DIPANGGIL (bukan lewat jalur Stream), padahal dia
+  /// dipanggil sinkron dari `DashboardProvider.load()` yang notabene
+  /// dipanggil sinkron lagi dari `create:` callback provider di
+  /// `MainShell.build`. Efeknya: exception itu ngebom widget tree lagi
+  /// dibangun, bukan ketangkep `onError` Stream — inilah yang bikin app
+  /// crash total (cascade "Another exception was thrown:
+  /// DiagnosticsProperty<void>") pas ada santri yang guru pembimbingnya
+  /// belum di-assign, alih-alih tampil sebagai layar "gagal memuat data"
+  /// yang rapi. Dengan dijadikan builder biasa, kedua caller yang beda
+  /// gaya (async Future vs Stream) sama-sama bisa pilih cara pas buat
+  /// nyalurkan error-nya — lihat pemakaiannya di bawah.
+  GuruBelumDitugaskanException _missingAccountIdError(Student student) =>
+      GuruBelumDitugaskanException(student);
 
   @override
   Future<List<SantriRecord>> getRecordsForStudent(Student student) async {
     final accountId = student.guruAccountId;
-    if (accountId == null) _missingAccountId(student);
+    // Aman throw langsung di sini: method ini `async`, jadi throw
+    // sinkron otomatis dibungkus Dart jadi Future.error — caller yang
+    // await + try/catch tetap ketangkep normal.
+    if (accountId == null) throw _missingAccountIdError(student);
     final col = _col(accountId);
     // Firestore butuh exact-match string untuk .where() — namaAnak
     // dibandingkan case-sensitive di query (beda dari MockReportRepository
@@ -98,7 +113,17 @@ class FirestoreReportRepository implements ReportRepository {
     // cache lokal, sekali konfirmasi server) — cukup 1 emit begitu server
     // konfirmasi.
     final accountId = student.guruAccountId;
-    if (accountId == null) _missingAccountId(student);
+    // FIX: dulu `if (accountId == null) _missingAccountId(student);` throw
+    // LANGSUNG di sini — itu penyebab crash di log (lihat penjelasan
+    // panjang di `_missingAccountIdError` di atas). Sekarang error-nya
+    // disalurkan lewat `Stream.error(...)`, jadi lewat jalur Stream yang
+    // normal dan otomatis ketangkep `onError` di `DashboardProvider.load`
+    // TANPA perlu ubah apa pun di provider-nya — persis kayak error
+    // Firestore lain (mis. permission-denied): jadi pesan gagal di UI,
+    // bukan crash total.
+    if (accountId == null) {
+      return Stream.error(_missingAccountIdError(student));
+    }
     return _col(accountId)
         .where('kelas', isEqualTo: student.kelas)
         .where('halaqoh', isEqualTo: student.halaqoh)
@@ -108,3 +133,4 @@ class FirestoreReportRepository implements ReportRepository {
         .map((snap) => snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList());
   }
 }
+

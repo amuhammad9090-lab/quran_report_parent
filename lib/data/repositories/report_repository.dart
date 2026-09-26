@@ -36,3 +36,21 @@ abstract class ReportRepository {
   /// app lagi.
   Stream<List<SantriRecord>> watchRecordsForStudent(Student student);
 }
+
+/// Dilempar/di-emit kalau [Student.guruAccountId] masih null — guru
+/// pembimbing untuk kelas/halaqoh santri ini belum ditugaskan di app
+/// guru. Ditaruh di sini (layer abstrak), bukan di
+/// `firestore_report_repository.dart`, supaya [DashboardProvider] (yang
+/// cuma boleh bergantung ke [ReportRepository], bukan implementasi
+/// konkretnya) tetap bisa cek tipe error ini secara type-safe
+/// (`e is GuruBelumDitugaskanException`) tanpa harus import Firestore.
+class GuruBelumDitugaskanException implements Exception {
+  final Student student;
+  const GuruBelumDitugaskanException(this.student);
+
+  @override
+  String toString() =>
+      'Student ${student.id} (${student.nama}) belum punya guruAccountId — '
+      'guru pembimbing untuk kelas ${student.kelas}/halaqoh ${student.halaqoh} '
+      'belum ke-assign di app guru.';
+}

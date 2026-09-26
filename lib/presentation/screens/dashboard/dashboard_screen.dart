@@ -153,18 +153,31 @@ class _DashboardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (dash.error != null && dash.records.isEmpty) {
-      return const CustomScrollView(
+      // Kasus "guru pembimbing belum ditugaskan" BEDA dari error koneksi
+      // biasa — bukan sesuatu yang bisa diperbaiki orang tua dengan
+      // "coba lagi", jadi pesannya juga harus beda (dan lebih akurat)
+      // dari EmptyState wifi-off generik di bawah.
+      final emptyState = dash.isGuruBelumDitugaskan
+          ? const EmptyState(
+              icon: Icons.assignment_late_rounded,
+              title: 'Guru pembimbing belum ditugaskan',
+              subtitle:
+                  'Kelas/halaqoh ananda belum ada guru pembimbingnya di sistem. '
+                  'Silakan hubungi pihak sekolah untuk menugaskan guru pembimbing.',
+            )
+          : const EmptyState(
+              icon: Icons.wifi_off_rounded,
+              title: 'Gagal memuat data',
+              subtitle: 'Periksa koneksi internet, lalu coba lagi.',
+            );
+      return CustomScrollView(
         slivers: [
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
-                child: EmptyState(
-                  icon: Icons.wifi_off_rounded,
-                  title: 'Gagal memuat data',
-                  subtitle: 'Periksa koneksi internet, lalu coba lagi.',
-                ),
+                padding: const EdgeInsets.all(24),
+                child: emptyState,
               ),
             ),
           ),
