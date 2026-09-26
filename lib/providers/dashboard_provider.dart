@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../data/models/enums.dart';
+import '../data/models/report_lifetime_stats.dart';
 import '../data/models/santri_record.dart';
 import '../data/models/student.dart';
 import '../data/repositories/report_repository.dart';
@@ -24,8 +25,28 @@ class DashboardProvider extends ChangeNotifier {
   // bisa mereka lakukan selain hubungi sekolah) dari error koneksi biasa
   // (yang masih relevan disuruh "coba lagi").
   Object? rawError;
+
+  // <-- BERUBAH (audit biaya Firestore read): [records] SEKARANG cuma
+  // berisi laporan dalam [_windowDays] hari terakhir, BUKAN sepanjang
+  // riwayat — supaya listener live yang nyala sepanjang sesi ini punya
+  // plafon biaya, gak terus membesar seiring bertambahnya laporan
+  // santri. Insight/perbandingan pekan ini-vs-lalu semuanya cuma butuh
+  // data terkini, jadi tidak terdampak. 2 angka yang MEMANG didefinisikan
+  // "sepanjang riwayat" ([totalBarisTercapai], [kehadiranRatio]) TETAP
+  // akurat lifetime lewat [_lifetimeStats] (aggregate query, lihat
+  // [ReportRepository.getLifetimeStats]) — bukan dihitung dari [records].
+  // Filter "Semua" di layar Perkembangan yang butuh detail laporan LEBIH
+  // LAMA dari jendela ini pakai [ensureFullHistoryLoaded]/[allRecords]
+  // di bawah, dipanggil lazy cuma kalau benar-benar dipilih.
+  static const _windowDays = 180;
+
   List<SantriRecord> records = [];
+  ReportLifetimeStats _lifetimeStats = ReportLifetimeStats.empty;
   StreamSubscription<List<SantriRecord>>? _subscription;
+  Student? _student;
+
+  List<SantriRecord>? _olderRecords;
+  bool isLoadingOlder = false;
 
   /// True kalau [error] sekarang ini spesifik karena guru pembimbing
   /// santri belum ditugaskan di app guru ([GuruBelumDitugaskanException])
@@ -37,11 +58,15 @@ class DashboardProvider extends ChangeNotifier {
     isLoading = true;
     error = null;
     rawError = null;
+    _student = student;
+    _olderRecords = null;
     notifyListeners();
+
+    final since = DateTime.now().subtract(const Duration(days: _windowDays));
 
     final completer = Completer<void>();
     _subscription?.cancel();
-    _subscription = reportRepository.watchRecordsForStudent(student).listen(
+    _subscription = reportRepository.watchRecentRecordsForStudent(student, since: since).listen(
       (data) {
         records = data;
         isLoading = false;
@@ -60,9 +85,50 @@ class DashboardProvider extends ChangeNotifier {
         if (!completer.isCompleted) completer.complete();
       },
     );
+
+    // Statistik lifetime — query terpisah (aggregate, murah), gagalnya
+    // TIDAK menggagalkan load() secara keseluruhan (dashboard tetap bisa
+    // tampil dengan data pekan berjalan meski statistik lifetime gagal
+    // dimuat, mis. lagi offline) — cukup dibiarkan [ReportLifetimeStats.empty].
+    reportRepository.getLifetimeStats(student).then((stats) {
+      _lifetimeStats = stats;
+      notifyListeners();
+    }).catchError((Object e, StackTrace st) {
+      debugPrint('DashboardProvider.load: getLifetimeStats gagal (nonfatal): $e');
+    });
+
     return completer.future;
   }
 
+  /// Dipanggil LAZY dari layar Perkembangan/History cuma pas orang tua
+  /// benar-benar pilih filter "Semua" (yang butuh laporan lebih lama
+  /// dari [_windowDays] hari default) — TIDAK dipanggil otomatis di
+  /// [load]. Idempotent: pemanggilan berikutnya setelah sukses langsung
+  /// no-op (tidak fetch ulang), lihat [allRecords].
+  Future<void> ensureFullHistoryLoaded() async {
+    if (_olderRecords != null || isLoadingOlder || _student == null) return;
+    isLoadingOlder = true;
+    notifyListeners();
+    try {
+      final since = DateTime.now().subtract(const Duration(days: _windowDays));
+      _olderRecords = await reportRepository.getRecordsForStudentBefore(_student!, before: since);
+    } catch (e, st) {
+      debugPrint('DashboardProvider.ensureFullHistoryLoaded gagal: $e\n$st');
+      // Dibiarkan null (bukan list kosong) supaya percobaan berikutnya
+      // (mis. orang tua toggle filter lagi) BOLEH coba fetch ulang,
+      // bukan dianggap "sudah dicoba dan hasilnya kosong".
+      _olderRecords = null;
+    } finally {
+      isLoadingOlder = false;
+      notifyListeners();
+    }
+  }
+
+  /// [records] (jendela [_windowDays] hari) digabung [_olderRecords]
+  /// (kalau sudah pernah dimuat lewat [ensureFullHistoryLoaded]) — buat
+  /// filter "Semua" di History. Tetap terurut terbaru dulu.
+  List<SantriRecord> get allRecords =>
+      _olderRecords == null ? records : [...records, ..._olderRecords!];
 
   @override
   void dispose() {
@@ -73,6 +139,19 @@ class DashboardProvider extends ChangeNotifier {
   SantriRecord? get latest => records.isEmpty ? null : records.first;
   String? get latestCatatanGuru => latestRecordWithCatatan?.catatan;
 
+  // <-- CATATAN (audit biaya Firestore read): [latestRecordWithCatatan] &
+  // [latestTahsinRecord] di bawah dicari dari [records], yang SEKARANG
+  // cuma jendela [_windowDays] (~6 bulan) hari terakhir — bukan lagi
+  // benar-benar "sepanjang riwayat" seperti sebelumnya. Ini trade-off
+  // yang disengaja: kalau ada santri yang catatan/laporan Tahsin
+  // TERAKHIRnya lebih lama dari itu, keduanya bakal balik null padahal
+  // sebetulnya ada versi lebih lama. Dalam praktiknya (laporan masuk
+  // beberapa kali seminggu) kasus ini jarang kejadian. Kalau ternyata
+  // perlu 100% akurat lifetime juga, bisa ditambah query khusus 1
+  // dokumen (mis. `.orderBy('tanggal', descending:true).limit(1)` dengan
+  // filter tambahan) di [FirestoreReportRepository] — sengaja belum
+  // dibikin sekarang karena butuh index komposit baru di Firestore,
+  // dampaknya kecil, dan scope perbaikan ini fokus ke biaya read.
   SantriRecord? get latestRecordWithCatatan {
     for (final r in records) {
       if (r.catatan != null && r.catatan!.trim().isNotEmpty) return r;
@@ -93,19 +172,21 @@ class DashboardProvider extends ChangeNotifier {
     return (keteranganDistribution[k] ?? 0) / records.length;
   }
 
-  /// % laporan yang santrinya HADIR secara fisik, dari seluruh laporan —
+  /// % laporan yang santrinya HADIR secara fisik, dari SELURUH laporan —
   /// dipakai untuk card ringkasan "Kehadiran" di dashboard.
-  double get kehadiranRatio {
-    if (records.isEmpty) return 0;
-    final hadirCount = records
-        .where((r) => r.keterangan == Keterangan.hadir || r.keterangan.isSanksiTanpaSetoran)
-        .length;
-    return hadirCount / records.length;
-  }
+  ///
+  /// <-- BERUBAH (audit biaya Firestore read): dulu di-fold dari
+  /// [records] (yang waktu itu = SELURUH riwayat, tanpa batas tanggal).
+  /// Sekarang [records] cuma jendela [_windowDays] hari, jadi angka
+  /// lifetime yang akurat diambil dari [_lifetimeStats] (aggregate
+  /// query, lihat [ReportRepository.getLifetimeStats]) — bukan fold
+  /// dokumen di client. Hasilnya SAMA PERSIS, cuma beda cara hitung.
+  double get kehadiranRatio => _lifetimeStats.kehadiranRatio;
 
   /// Laporan Tahsin (murni atau bagian dari Tahsin+Tahfizh) PALING BARU
-  /// sepanjang riwayat — sumber ringkasan "Tahsin Terakhir" di hero
-  /// Beranda.
+  /// dalam jendela [_windowDays] hari terakhir (lihat catatan di atas
+  /// [latestRecordWithCatatan] soal kenapa bukan lagi "sepanjang
+  /// riwayat") — sumber ringkasan "Tahsin Terakhir" di hero Beranda.
   SantriRecord? get latestTahsinRecord {
     for (final r in records) {
       if (r.status == HafalanStatus.tahsin ||
@@ -118,8 +199,12 @@ class DashboardProvider extends ChangeNotifier {
 
   /// Total baris tahfizh yang tercapai sepanjang riwayat laporan
   /// (agregat totalBaris semua laporan status Tahfizh/Tahsin+Tahfizh).
-  int get totalBarisTercapai =>
-      records.fold<int>(0, (sum, r) => sum + (r.totalBaris ?? 0));
+  ///
+  /// <-- BERUBAH (audit biaya Firestore read): sama alasannya seperti
+  /// [kehadiranRatio] di atas — diambil dari [_lifetimeStats] (aggregate
+  /// query server-side), bukan fold [records] yang sekarang cuma
+  /// jendela [_windowDays] hari.
+  int get totalBarisTercapai => _lifetimeStats.totalBarisTercapai;
 
   // ---------------------------------------------------------------------
   // Rekap Pekanan — dipakai buat banner Dashboard + card "Baris Pekan

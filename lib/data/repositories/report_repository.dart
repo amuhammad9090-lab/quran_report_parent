@@ -1,5 +1,6 @@
 import '../models/student.dart';
 import '../models/santri_record.dart';
+import '../models/report_lifetime_stats.dart';
 
 /// Abstraksi sumber data [SantriRecord] untuk SATU santri (portal orang
 /// tua tidak pernah butuh daftar lintas-santri). Implementasi production
@@ -35,6 +36,38 @@ abstract class ReportRepository {
   /// LANGSUNG begitu guru submit/edit laporan — tidak perlu buka-tutup
   /// app lagi.
   Stream<List<SantriRecord>> watchRecordsForStudent(Student student);
+
+  // -----------------------------------------------------------------
+  // BARU (audit biaya Firestore read): [watchRecordsForStudent] di atas
+  // narik SELURUH riwayat laporan santri tanpa batas tanggal, sebagai 1
+  // listener yang nyala sepanjang sesi — biayanya (jumlah dokumen yang
+  // dibaca tiap kali app dibuka/listener nyambung ulang) MEMBESAR TERUS
+  // seiring bertambahnya laporan, tanpa plafon. [DashboardProvider]
+  // sekarang pakai 3 method di bawah ini sebagai gantinya:
+  // 1. [watchRecentRecordsForStudent] — listener yang SAMA tapi dibatasi
+  //    jendela waktu (lihat pemanggilnya), jadi biayanya punya plafon.
+  // 2. [getLifetimeStats] — angka "sepanjang riwayat" (total baris,
+  //    rasio kehadiran) yang TETAP akurat lifetime, dihitung via
+  //    Firestore aggregate query (count()/sum()) — bukan fold dokumen.
+  // 3. [getRecordsForStudentBefore] — buat filter "Semua" di layar
+  //    Perkembangan, dipanggil LAZY cuma sekali pas orang tua beneran
+  //    pilih filter itu (bukan otomatis tiap buka app).
+  // -----------------------------------------------------------------
+
+  /// Sama seperti [watchRecordsForStudent], tapi dibatasi cuma laporan
+  /// sejak [since] (inklusif). Ini yang dipakai [DashboardProvider]
+  /// sebagai listener utama sehari-hari.
+  Stream<List<SantriRecord>> watchRecentRecordsForStudent(Student student, {required DateTime since});
+
+  /// Statistik lifetime (lihat [ReportLifetimeStats]) — one-time fetch,
+  /// dihitung server-side, TIDAK menarik dokumen laporan satu-satu.
+  Future<ReportLifetimeStats> getLifetimeStats(Student student);
+
+  /// Laporan yang tanggalnya SEBELUM [before] (lebih lama dari jendela
+  /// default [watchRecentRecordsForStudent]) — one-time fetch, dipanggil
+  /// LAZY cuma kalau orang tua benar-benar butuh (filter "Semua" di
+  /// Perkembangan/History).
+  Future<List<SantriRecord>> getRecordsForStudentBefore(Student student, {required DateTime before});
 }
 
 /// Dilempar/di-emit kalau [Student.guruAccountId] masih null — guru

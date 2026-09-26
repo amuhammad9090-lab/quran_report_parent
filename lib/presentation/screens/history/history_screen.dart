@@ -13,10 +13,19 @@ import '../../widgets/status_badge.dart';
 
 /// "Perkembangan" — rekap mingguan dari guru + riwayat laporan lengkap
 /// (dikelompokkan per tanggal) + filter periode + detail laporan (tap
-/// satu baris buka bottom sheet). SEMUA filter di sini murni client-side
-/// terhadap [DashboardProvider.records] yang sudah di-fetch SEKALI per
-/// sesi di [MainShell] — filter periode TIDAK memicu query Firestore
-/// baru sama sekali, cukup narrow subset yang sudah ada di memori.
+/// satu baris buka bottom sheet).
+///
+/// <-- BERUBAH (audit biaya Firestore read): dulu SEMUA filter di sini
+/// murni client-side terhadap [DashboardProvider.records], yang waktu
+/// itu = SELURUH riwayat laporan (tanpa batas tanggal). Sekarang
+/// [DashboardProvider.records] cuma jendela ~6 bulan terakhir (lihat
+/// catatan di `DashboardProvider`) — filter "Pekan Ini"/"Bulan Ini"/"3
+/// Bulan Terakhir" TETAP murni client-side terhadap `records` (selalu
+/// tercakup penuh di jendela itu, tidak memicu query baru). KHUSUS
+/// filter "Semua", yang butuh laporan lebih lama dari jendela itu, layar
+/// ini manggil [DashboardProvider.ensureFullHistoryLoaded] (one-time
+/// fetch, lazy — cuma jalan pas filter ini beneran dipilih) lalu pakai
+/// [DashboardProvider.allRecords] sebagai gantinya.
 ///
 /// Section "Rekap Pekanan dari Guru" di paling atas (kartu
 /// horizontal-scroll) — nampilin rekap MINGGUAN yang guru "Deploy" dari
@@ -43,6 +52,23 @@ extension on _PeriodFilter {
 class _HistoryScreenState extends State<HistoryScreen> {
   _PeriodFilter _filter = _PeriodFilter.semua;
 
+  @override
+  void initState() {
+    super.initState();
+    // Filter default layar ini adalah "Semua" (bukan cuma dipicu tap
+    // chip user) — jadi laporan yang lebih lama dari jendela default
+    // [DashboardProvider] perlu di-lazy-load begitu TAB INI dibuka,
+    // idempotent (aman kalau dipanggil lagi, lihat
+    // DashboardProvider.ensureFullHistoryLoaded). Ini beda dari dulu:
+    // sekarang biayanya cuma ditanggung SEKALI per sesi, dan CUMA kalau
+    // orang tua benar-benar buka tab "Perkembangan" — bukan otomatis
+    // tiap buka app (yang cukup lewat Beranda/DashboardProvider.records
+    // yang sudah dibatasi jendela).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<DashboardProvider>().ensureFullHistoryLoaded();
+    });
+  }
+
   List<SantriRecord> _applyFilter(List<SantriRecord> records) {
     if (_filter == _PeriodFilter.semua) return records;
     final now = DateTime.now();
@@ -64,7 +90,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (dash.records.isEmpty) {
+    // <-- BERUBAH: dulu cek `dash.records.isEmpty` langsung berarti
+    // "belum ada riwayat sama sekali". Sekarang `dash.records` cuma
+    // jendela ~6 bulan terakhir, jadi kosong BELUM TENTU berarti
+    // riwayatnya kosong — bisa jadi laporan lamanya ada tapi lebih tua
+    // dari jendela itu. Tunggu [ensureFullHistoryLoaded] (dipicu di
+    // [initState]) selesai dulu sebelum vonis "belum ada riwayat".
+    if (dash.records.isEmpty && dash.isLoadingOlder) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (dash.records.isEmpty && dash.allRecords.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Perkembangan'),
@@ -88,7 +124,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    final filtered = _applyFilter(dash.records);
+    // Filter "Semua" butuh [allRecords] (jendela default + laporan lama
+    // yang di-lazy-load lewat [ensureFullHistoryLoaded]); filter periode
+    // lain cukup [dash.records] (selalu tercakup penuh di jendela
+    // default ~6 bulan) — lihat catatan panjang di kelas ini.
+    final source = _filter == _PeriodFilter.semua ? dash.allRecords : dash.records;
+    final filtered = _applyFilter(source);
 
     // records dari DashboardProvider sudah terurut terbaru dulu, dan
     // grouping di bawah TIDAK mengubah urutan itu — cukup mengelompokkan
