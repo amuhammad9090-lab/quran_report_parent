@@ -107,7 +107,22 @@ class _MainShellBodyState extends State<_MainShellBody> {
     (icon: Icons.settings_rounded, label: 'Pengaturan'),
   ];
 
-  void _goToPerkembangan() => setState(() => _index = 1);
+  // <-- BARU (audit biaya Firestore read): SEMUA tab di bawah selalu
+  // mounted sekaligus lewat Stack (lihat komentar `content` di bawah) —
+  // ini SATU-SATUNYA tempat yang benar-benar tahu kapan orang tua
+  // PINDAH ke tab "Perkembangan" (index 1). [ensureFullHistoryLoaded]
+  // sengaja dipanggil DI SINI (bukan dari `initState` HistoryScreen)
+  // supaya beneran cuma jalan pas tab itu dibuka, bukan tiap kali sesi
+  // dimulai — idempotent, aman dipanggil berkali-kali kalau orang tua
+  // bolak-balik ke tab ini.
+  void _setIndex(int i) {
+    setState(() => _index = i);
+    if (i == 1) {
+      context.read<DashboardProvider>().ensureFullHistoryLoaded();
+    }
+  }
+
+  void _goToPerkembangan() => _setIndex(1);
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +170,7 @@ class _MainShellBodyState extends State<_MainShellBody> {
             body: content,
             bottomNavigationBar: NavigationBar(
               selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
+              onDestinationSelected: _setIndex,
               destinations: [
                 for (final d in _destinations)
                   NavigationDestination(icon: Icon(d.icon), label: d.label),
@@ -171,7 +186,7 @@ class _MainShellBodyState extends State<_MainShellBody> {
             children: [
               NavigationRail(
                 selectedIndex: _index,
-                onDestinationSelected: (i) => setState(() => _index = i),
+                onDestinationSelected: _setIndex,
                 labelType: NavigationRailLabelType.all,
                 destinations: [
                   for (final d in _destinations)

@@ -52,22 +52,21 @@ extension on _PeriodFilter {
 class _HistoryScreenState extends State<HistoryScreen> {
   _PeriodFilter _filter = _PeriodFilter.semua;
 
-  @override
-  void initState() {
-    super.initState();
-    // Filter default layar ini adalah "Semua" (bukan cuma dipicu tap
-    // chip user) — jadi laporan yang lebih lama dari jendela default
-    // [DashboardProvider] perlu di-lazy-load begitu TAB INI dibuka,
-    // idempotent (aman kalau dipanggil lagi, lihat
-    // DashboardProvider.ensureFullHistoryLoaded). Ini beda dari dulu:
-    // sekarang biayanya cuma ditanggung SEKALI per sesi, dan CUMA kalau
-    // orang tua benar-benar buka tab "Perkembangan" — bukan otomatis
-    // tiap buka app (yang cukup lewat Beranda/DashboardProvider.records
-    // yang sudah dibatasi jendela).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<DashboardProvider>().ensureFullHistoryLoaded();
-    });
-  }
+  // <-- PERBAIKAN: SEBELUMNYA trigger [ensureFullHistoryLoaded] ditaruh
+  // di `initState()` di sini, dengan asumsi "initState cuma jalan kalau
+  // tab ini dibuka". Ternyata SALAH untuk shell ini — `MainShell`
+  // nyimpen SEMUA tab (Beranda/Perkembangan/Pengaturan) di satu `Stack`
+  // sekaligus (`for (int i = 0; ...) Positioned.fill(...)`), bukan
+  // lazy-build per-tab, supaya scroll position & filter tiap tab tidak
+  // hilang waktu pindah-pindah. Efeknya `HistoryScreen.initState()`
+  // JALAN LANGSUNG begitu sesi dimulai, terlepas dari tab mana yang
+  // sedang dilihat orang tua -- jadi trigger di situ SELALU ketembak
+  // tiap buka app, sama sekali TIDAK lazy, dan justru menghilangkan
+  // manfaat pembatasan jendela di `DashboardProvider`.
+  //
+  // Diperbaiki dengan memindah trigger-nya ke `MainShell` (dipanggil
+  // pas orang tua BENERAN pindah ke tab index 1), bukan lifecycle
+  // widget ini -- lihat `MainShell._setIndex`.
 
   List<SantriRecord> _applyFilter(List<SantriRecord> records) {
     if (_filter == _PeriodFilter.semua) return records;
