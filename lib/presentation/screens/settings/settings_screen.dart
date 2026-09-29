@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/responsive.dart';
 import '../../../providers/theme_provider.dart';
+import '../../widgets/app_update_dialog.dart';
 import '../../widgets/misc_widgets.dart';
 
 /// Tab "Pengaturan" — MENGGANTIKAN tab "Profil" yang lama di bottom-nav
@@ -134,8 +136,6 @@ class _ThemeModeOption extends StatelessWidget {
 }
 
 /// Kartu info aplikasi — nama, versi, deskripsi singkat, & sekolah.
-const _kAppVersion = '1.0.0';
-
 class _AboutAppCard extends StatelessWidget {
   const _AboutAppCard();
 
@@ -161,9 +161,18 @@ class _AboutAppCard extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Quran Report • Versi $_kAppVersion',
-                        style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
+                      // Versi diambil dari pubspec (versi + nomor build),
+                      // bukan hardcode, supaya selalu sesuai APK yang terpasang.
+                      FutureBuilder<PackageInfo>(
+                        future: PackageInfo.fromPlatform(),
+                        builder: (context, snap) {
+                          final p = snap.data;
+                          final v = p == null ? '' : ' ${p.version} (${p.buildNumber})';
+                          return Text(
+                            'Quran Report • Versi$v',
+                            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -185,6 +194,15 @@ class _AboutAppCard extends StatelessWidget {
             const _AboutRow(icon: Icons.school_rounded, label: 'Sekolah', value: 'SMPIT Al Madinah, Tanjungpinang'),
             const SizedBox(height: 10),
             const _AboutRow(icon: Icons.support_agent_rounded, label: 'Bantuan', value: 'Hubungi guru pembimbing'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => checkForAppUpdate(context, manual: true),
+                icon: const Icon(Icons.system_update_rounded, size: 18),
+                label: const Text('Cek pembaruan'),
+              ),
+            ),
           ],
         ),
       ),

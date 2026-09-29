@@ -34,11 +34,28 @@ class AppUpdateService {
 
   static const _docPath = 'appConfig/parent_android';
 
+  /// Alasan hasil cek terakhir (buat debug / ditampilkan di SnackBar).
+  static String lastStatus = 'belum dicek';
+
+  /// Toleran: terima number maupun string ("2") dari Firestore.
+  static int _asInt(Object? v) {
+    if (v is num) return v.toInt();
+    return int.tryParse('${v ?? ''}'.trim()) ?? 0;
+  }
+
+  static void _log(String m) {
+    lastStatus = m;
+    debugPrint('[update] $m');
+  }
+
   /// Return [AppUpdateInfo] kalau ada versi lebih baru, selain itu null.
   /// Sengaja "fail silent": gagal cek update tidak boleh ganggu app.
   static Future<AppUpdateInfo?> check() async {
     // Hanya Android (APK). Web otomatis selalu versi terbaru.
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      _log('dilewati: bukan Android');
+      return null;
+    }
 
     try {
       final pkg = await PackageInfo.fromPlatform();
@@ -50,16 +67,25 @@ class AppUpdateService {
           .timeout(const Duration(seconds: 8));
       final d = snap.data();
       if (d == null) {
-        debugPrint('[update] dokumen $_docPath tidak ditemukan');
+        _log('dokumen schools/$kSchoolId/$_docPath tidak ditemukan');
         return null;
       }
 
-      final latest = (d['latestVersionCode'] as num?)?.toInt() ?? 0;
-      final min = (d['minVersionCode'] as num?)?.toInt() ?? 0;
+      final latest = _asInt(d['latestVersionCode']);
+      final min = _asInt(d['minVersionCode']);
       final url = (d['apkUrl'] as String?)?.trim() ?? '';
-      debugPrint('[update] current=$current latest=$latest min=$min '
-          'apkUrl=${url.isEmpty ? "(KOSONG)" : "ok"}');
-      if (latest <= current || url.isEmpty) return null;
+      final status = 'HP build=$current, Firestore latest=$latest min=$min, '
+          'apkUrl=${url.isEmpty ? "KOSONG" : "ada"}';
+
+      if (url.isEmpty) {
+        _log('$status -> apkUrl kosong');
+        return null;
+      }
+      if (latest <= current) {
+        _log('$status -> sudah versi terbaru (latest harus > build HP)');
+        return null;
+      }
+      _log('$status -> ADA UPDATE');
 
       return AppUpdateInfo(
         latestVersionCode: latest,
@@ -69,7 +95,7 @@ class AppUpdateService {
         forced: current < min,
       );
     } catch (e) {
-      debugPrint('[update] gagal cek update: $e');
+      _log('gagal cek update: $e');
       return null;
     }
   }
