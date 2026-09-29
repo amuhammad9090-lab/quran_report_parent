@@ -49,11 +49,16 @@ class AppUpdateService {
           .get()
           .timeout(const Duration(seconds: 8));
       final d = snap.data();
-      if (d == null) return null;
+      if (d == null) {
+        debugPrint('[update] dokumen $_docPath tidak ditemukan');
+        return null;
+      }
 
       final latest = (d['latestVersionCode'] as num?)?.toInt() ?? 0;
       final min = (d['minVersionCode'] as num?)?.toInt() ?? 0;
       final url = (d['apkUrl'] as String?)?.trim() ?? '';
+      debugPrint('[update] current=$current latest=$latest min=$min '
+          'apkUrl=${url.isEmpty ? "(KOSONG)" : "ok"}');
       if (latest <= current || url.isEmpty) return null;
 
       return AppUpdateInfo(
@@ -63,7 +68,8 @@ class AppUpdateService {
         changelog: (d['changelog'] as String?) ?? '',
         forced: current < min,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[update] gagal cek update: $e');
       return null;
     }
   }

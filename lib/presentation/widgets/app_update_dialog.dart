@@ -1,14 +1,47 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 
+import '../../core/utils/web_update.dart';
 import '../../data/services/app_update_service.dart';
 
 /// Panggil sekali setelah login (mis. di initState MainShell):
 ///   WidgetsBinding.instance.addPostFrameCallback(
 ///     (_) => checkForAppUpdate(context));
+/// Nomor build web yang sedang jalan, di-set saat build:
+///   flutter build web --release --dart-define=APP_BUILD=2
+/// (samakan dengan angka setelah "+" di pubspec). Kalau tidak di-set (0),
+/// cek update web dilewati.
+const int kRunningWebBuild = int.fromEnvironment('APP_BUILD', defaultValue: 0);
+
+Future<void> _checkWebUpdate(BuildContext context) async {
+  if (kRunningWebBuild <= 0) return;
+  final latest = await fetchLatestWebBuild();
+  if (latest == null || latest <= kRunningWebBuild || !context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Versi baru tersedia'),
+      content: const Text(
+          'Ada pembaruan aplikasi. Muat ulang sekarang untuk memakai versi terbaru?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Nanti'),
+        ),
+        FilledButton(
+          onPressed: () => reloadToLatest(),
+          child: const Text('Muat ulang'),
+        ),
+      ],
+    ),
+  );
+}
+
 Future<void> checkForAppUpdate(BuildContext context) async {
+  if (kIsWeb) return _checkWebUpdate(context);
   final info = await AppUpdateService.check();
   if (info == null || !context.mounted) return;
   await showDialog<void>(
