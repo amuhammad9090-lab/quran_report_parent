@@ -44,101 +44,17 @@ class FirestoreReportRepository implements ReportRepository {
 
   /// Guru pembimbing untuk santri ini belum ke-assign
   /// ([Student.guruAccountId] null) — gagal jelas, bukan diam-diam baca
-  /// koleksi kosong/salah.
-  ///
-  /// PENTING: ini cuma BIKIN objek exception-nya (tidak throw langsung),
-  /// beda dari sebelumnya. Alasannya ada di [watchRecordsForStudent] —
-  /// intinya method itu bukan `async`, jadi `throw` langsung di badannya
-  /// meledak SAAT DIPANGGIL (bukan lewat jalur Stream), padahal dia
-  /// dipanggil sinkron dari `DashboardProvider.load()` yang notabene
-  /// dipanggil sinkron lagi dari `create:` callback provider di
-  /// `MainShell.build`. Efeknya: exception itu ngebom widget tree lagi
-  /// dibangun, bukan ketangkep `onError` Stream — inilah yang bikin app
-  /// crash total (cascade "Another exception was thrown:
-  /// DiagnosticsProperty<void>") pas ada santri yang guru pembimbingnya
-  /// belum di-assign, alih-alih tampil sebagai layar "gagal memuat data"
-  /// yang rapi. Dengan dijadikan builder biasa, kedua caller yang beda
-  /// gaya (async Future vs Stream) sama-sama bisa pilih cara pas buat
-  /// nyalurkan error-nya — lihat pemakaiannya di bawah.
+  /// koleksi kosong/salah. Dipakai semua method di kelas ini yang butuh
+  /// `accountId` (langsung `throw` untuk method `async`, atau dibungkus
+  /// `Stream.error(...)` untuk method yang return `Stream` — lihat
+  /// [watchRecentRecordsForStudent]).
   GuruBelumDitugaskanException _missingAccountIdError(Student student) =>
       GuruBelumDitugaskanException(student);
-
-  @override
-  Future<List<SantriRecord>> getRecordsForStudent(Student student) async {
-    final accountId = student.guruAccountId;
-    // Aman throw langsung di sini: method ini `async`, jadi throw
-    // sinkron otomatis dibungkus Dart jadi Future.error — caller yang
-    // await + try/catch tetap ketangkep normal.
-    if (accountId == null) throw _missingAccountIdError(student);
-    final col = _col(accountId);
-    // Firestore butuh exact-match string untuk .where() — namaAnak
-    // dibandingkan case-sensitive di query (beda dari MockReportRepository
-    // yang case-insensitive di Dart). Kalau nanti ada mismatch kapitalisasi
-    // antara Student.nama & SantriRecord.namaAnak, pertimbangkan simpan
-    // field tambahan `namaAnakLower` khusus buat query (denormalisasi
-    // umum di Firestore) — BUKAN mengubah cara app guru menyimpan nama.
-    //
-    // <-- BARU: .timeout(...) — sebelumnya kalau query ini nyangkut
-    // (apa pun sebabnya: koneksi, index, dll), await-nya nunggu
-    // SELAMANYA, bikin UI muter tanpa akhir. Sekarang dipaksa gagal
-    // eksplisit setelah 15 detik, supaya try/catch di DashboardProvider
-    // KETANGKEP dan errornya kelihatan, bukan nyangkut diam-diam.
-    // .get(const GetOptions(source: Source.server)) — <-- BARU juga,
-    // maksa ambil dari server (bukan diam-diam nunggu cache lokal yang
-    // mungkin belum ke-sync).
-    final snap = await col
-        .where('kelas', isEqualTo: student.kelas)
-        .where('halaqoh', isEqualTo: student.halaqoh)
-        .where('namaAnak', isEqualTo: student.nama)
-        .orderBy('tanggal', descending: true)
-        .get(const GetOptions(source: Source.server))
-        .timeout(
-          const Duration(seconds: 15),
-          onTimeout: () => throw TimeoutException(
-            'Query santriRecords timeout 15 detik (kelas=${student.kelas}, '
-            'halaqoh=${student.halaqoh}, namaAnak=${student.nama})',
-          ),
-        );
-
-    return snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList();
-  }
-
-  @override
-  Stream<List<SantriRecord>> watchRecordsForStudent(Student student) {
-    // Query FILTER-nya sama persis dengan getRecordsForStudent di atas
-    // (kelas+halaqoh+namaAnak exact match di level Firestore) — cuma
-    // `.snapshots()` dipakai sebagai ganti `.get()` sekali, jadi listener
-    // ini otomatis emit ulang setiap kali ada dokumen yang cocok
-    // ditambah/diubah/dihapus. `includeMetadataChanges: false` (default)
-    // supaya tidak emit dua kali untuk 1 perubahan yang sama (sekali dari
-    // cache lokal, sekali konfirmasi server) — cukup 1 emit begitu server
-    // konfirmasi.
-    final accountId = student.guruAccountId;
-    // FIX: dulu `if (accountId == null) _missingAccountId(student);` throw
-    // LANGSUNG di sini — itu penyebab crash di log (lihat penjelasan
-    // panjang di `_missingAccountIdError` di atas). Sekarang error-nya
-    // disalurkan lewat `Stream.error(...)`, jadi lewat jalur Stream yang
-    // normal dan otomatis ketangkep `onError` di `DashboardProvider.load`
-    // TANPA perlu ubah apa pun di provider-nya — persis kayak error
-    // Firestore lain (mis. permission-denied): jadi pesan gagal di UI,
-    // bukan crash total.
-    if (accountId == null) {
-      return Stream.error(_missingAccountIdError(student));
-    }
-    return _col(accountId)
-        .where('kelas', isEqualTo: student.kelas)
-        .where('halaqoh', isEqualTo: student.halaqoh)
-        .where('namaAnak', isEqualTo: student.nama)
-        .orderBy('tanggal', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs.map((d) => SantriRecord.fromJson(d.data())).toList());
-  }
 
   /// Filter kelas+halaqoh+namaAnak yang sama dipakai SEMUA method di
   /// kelas ini — diekstrak biar [watchRecentRecordsForStudent],
   /// [getLifetimeStats], dan [getRecordsForStudentBefore] di bawah tidak
-  /// mengulang 3 baris `.where(...)` yang sama persis dengan
-  /// [getRecordsForStudent]/[watchRecordsForStudent] di atas.
+  /// mengulang 3 baris `.where(...)` yang sama persis.
   Query<Map<String, dynamic>> _baseQuery(String accountId, Student student) => _col(accountId)
       .where('kelas', isEqualTo: student.kelas)
       .where('halaqoh', isEqualTo: student.halaqoh)
@@ -156,12 +72,11 @@ class FirestoreReportRepository implements ReportRepository {
   @override
   Stream<List<SantriRecord>> watchRecentRecordsForStudent(Student student, {required DateTime since}) {
     // <-- BARU (audit biaya Firestore read — lihat penjelasan panjang di
-    // `report_repository.dart`): sama persis dengan
-    // [watchRecordsForStudent], TAPI dibatasi `tanggal >= since`. Ini
-    // listener UTAMA yang dipakai [DashboardProvider] sehari-hari,
-    // supaya biaya read TIDAK terus membesar seiring bertambahnya
-    // riwayat laporan santri — dia punya plafon (~[since] sampai
-    // sekarang), bukan sepanjang riwayat.
+    // `report_repository.dart`): listener utama dashboard, TAPI dibatasi
+    // `tanggal >= since` (bukan seluruh riwayat tanpa batas). Ini yang
+    // dipakai [DashboardProvider] sehari-hari, supaya biaya read TIDAK
+    // terus membesar seiring bertambahnya riwayat laporan santri — dia
+    // punya plafon (~[since] sampai sekarang), bukan sepanjang riwayat.
     final accountId = student.guruAccountId;
     if (accountId == null) {
       return Stream.error(_missingAccountIdError(student));

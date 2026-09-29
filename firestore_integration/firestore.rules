@@ -119,6 +119,15 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoBase64', 'photoUpdatedAt']);
       }
 
+      // Info versi terbaru app Android (Portal Ortu) buat fitur update
+      // in-app. Dibaca app SEBELUM/SESUDAH login, isinya cuma nomor
+      // versi + link APK + changelog (tidak sensitif) => read publik.
+      // Tulis cuma admin (atau lewat Firebase Console).
+      match /appConfig/{docId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
       // Metadata versi cache `students` (global, bukan per-guru).
       match /metadata/{docId} {
         allow read, write: if isGuruApp();

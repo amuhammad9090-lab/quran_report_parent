@@ -30,6 +30,10 @@ dependencies:
   # --- Image ---
   image_picker: ^1.1.2
 
+  # --- In-app update (APK) ---
+  package_info_plus: ^8.0.0
+  ota_update: ^7.1.0
+
   # --- Web ---
   web: ^1.1.0
 

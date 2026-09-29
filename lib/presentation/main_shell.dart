@@ -11,6 +11,7 @@ import '../providers/dashboard_provider.dart';
 import '../providers/hafalan_provider.dart';
 import '../providers/parent_note_provider.dart';
 import '../providers/weekly_recap_provider.dart';
+import 'widgets/app_update_dialog.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -100,6 +101,15 @@ class _MainShellBody extends StatefulWidget {
 
 class _MainShellBodyState extends State<_MainShellBody> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cek update APK (Android saja; web/iOS otomatis di-skip di dalam service).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkForAppUpdate(context);
+    });
+  }
 
   static const _destinations = [
     (icon: Icons.home_rounded, label: 'Beranda'),

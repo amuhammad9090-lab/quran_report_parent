@@ -21,41 +21,29 @@ import '../models/report_lifetime_stats.dart';
 /// sudah dibuang dari file ini — sudah tidak dipakai sejak STEP 10
 /// (backend Firestore beneran), cuma bikin bingung kalau dibiarin.
 abstract class ReportRepository {
-  /// Semua laporan milik [student], terurut terbaru dulu. One-time fetch
-  /// — dipertahankan buat kompatibilitas/kasus yang memang cuma butuh
-  /// snapshot sekali (mis. testing), tapi [DashboardProvider] sekarang
-  /// pakai [watchRecordsForStudent] di bawah supaya UI update sendiri
-  /// begitu guru input/ubah laporan, tanpa orang tua perlu refresh manual.
-  Future<List<SantriRecord>> getRecordsForStudent(Student student);
-
-  /// Versi REAL-TIME dari [getRecordsForStudent] — live listener Firestore
-  /// (`.snapshots()`), emit ulang daftar terbaru setiap kali ada
-  /// perubahan di koleksi `santriRecords` yang cocok filter kelas+halaqoh+
-  /// namaAnak milik [student]. Ini yang bikin "Catatan Guru" (dan semua
-  /// data turunannya: progress hafalan, insight, dst) di Beranda muncul
-  /// LANGSUNG begitu guru submit/edit laporan — tidak perlu buka-tutup
-  /// app lagi.
-  Stream<List<SantriRecord>> watchRecordsForStudent(Student student);
-
-  // -----------------------------------------------------------------
-  // BARU (audit biaya Firestore read): [watchRecordsForStudent] di atas
-  // narik SELURUH riwayat laporan santri tanpa batas tanggal, sebagai 1
-  // listener yang nyala sepanjang sesi — biayanya (jumlah dokumen yang
-  // dibaca tiap kali app dibuka/listener nyambung ulang) MEMBESAR TERUS
-  // seiring bertambahnya laporan, tanpa plafon. [DashboardProvider]
-  // sekarang pakai 3 method di bawah ini sebagai gantinya:
-  // 1. [watchRecentRecordsForStudent] — listener yang SAMA tapi dibatasi
-  //    jendela waktu (lihat pemanggilnya), jadi biayanya punya plafon.
+  // <-- BERSIH (audit biaya Firestore read, lanjutan): dulu ada
+  // `getRecordsForStudent`/`watchRecordsForStudent` di sini — versi
+  // one-time/listener TANPA batas tanggal, narik SELURUH riwayat laporan
+  // santri sekaligus. Sudah tidak dipanggil dari mana pun sejak
+  // [DashboardProvider] pindah ke [watchRecentRecordsForStudent] +
+  // [getLifetimeStats] + [getRecordsForStudentBefore] di bawah — DIHAPUS
+  // total (bukan cuma dibiarkan nganggur) supaya tidak ada yang nanti
+  // tidak sadar manggil versi unbounded-nya lagi.
+  //
+  // 3 method yang aktif dipakai sekarang:
+  // 1. [watchRecentRecordsForStudent] — listener utama, dibatasi jendela
+  //    waktu, jadi biayanya punya plafon.
   // 2. [getLifetimeStats] — angka "sepanjang riwayat" (total baris,
   //    rasio kehadiran) yang TETAP akurat lifetime, dihitung via
   //    Firestore aggregate query (count()/sum()) — bukan fold dokumen.
   // 3. [getRecordsForStudentBefore] — buat filter "Semua" di layar
   //    Perkembangan, dipanggil LAZY cuma sekali pas orang tua beneran
   //    pilih filter itu (bukan otomatis tiap buka app).
-  // -----------------------------------------------------------------
 
-  /// Sama seperti [watchRecordsForStudent], tapi dibatasi cuma laporan
-  /// sejak [since] (inklusif). Ini yang dipakai [DashboardProvider]
+  /// Live listener Firestore (`.snapshots()`), dibatasi cuma laporan
+  /// sejak [since] (inklusif) — emit ulang daftar terbaru setiap kali ada
+  /// perubahan di koleksi `laporan` yang cocok filter kelas+halaqoh+
+  /// namaAnak milik [student]. Ini yang dipakai [DashboardProvider]
   /// sebagai listener utama sehari-hari.
   Stream<List<SantriRecord>> watchRecentRecordsForStudent(Student student, {required DateTime since});
 
