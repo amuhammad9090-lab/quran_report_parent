@@ -18,6 +18,21 @@ class WeeklyRecapProvider extends ChangeNotifier {
   String? error;
   List<WeeklyRecap> recaps = [];
 
+  /// Nama guru pembimbing, diambil dari [WeeklyRecap.guruPembimbing] milik
+  /// rekap PALING BARU yang field itu terisi (field-nya opsional — rekap
+  /// lama sebelum app guru mulai mengirim field ini bakal null, jadi
+  /// jangan cuma ambil [recaps].first mentah-mentah). Null kalau belum
+  /// ada satu pun rekap pekanan yang pernah di-deploy guru buat santri
+  /// ini, atau semuanya dari sebelum field ini ada — dipakai Profile
+  /// buat nampilin "Guru Pembimbing" CUMA kalau datanya beneran ada.
+  String? get guruPembimbingNama {
+    for (final r in recaps) {
+      final nama = r.guruPembimbing?.trim();
+      if (nama != null && nama.isNotEmpty) return nama;
+    }
+    return null;
+  }
+
   Future<void> load() async {
     isLoading = true;
     error = null;

@@ -1,7 +1,6 @@
 import '../models/santri_record.dart';
 import 'juz_boundaries.dart';
 import 'quran_engine_service.dart';
-
 /// Hasil perhitungan progress satu juz untuk satu santri.
 class JuzProgress {
   final int juz;

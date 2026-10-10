@@ -1,83 +1,12 @@
 import '../../core/utils/text_utils.dart';
 import 'enums.dart';
+import 'tahfizh_segment.dart';
+import 'tilawah_segment.dart';
 
-/// Satu segmen Tahfizh (hafalan baru): 1 surah + rentang ayat + hasil
-/// generate barisnya sendiri. Laporan bisa punya LEBIH DARI SATU segmen
-/// kalau santri setoran nyambung lintas surah dalam 1 pertemuan (mis.
-/// abis akhir Al-Baqarah, lanjut awal Ali 'Imran).
-class TahfizhSegment {
-  final int surahNumber;
-  final String surahName;
-  final int ayatMulai;
-  final int ayatSelesai;
-  final int totalBaris; // baris baru hasil generate KHUSUS segmen ini
-  final List<String> lineIds; // id baris fisik yang dihitung di segmen ini
+export 'santri_record_display.dart';
+export 'tahfizh_segment.dart';
+export 'tilawah_segment.dart';
 
-  const TahfizhSegment({
-    required this.surahNumber,
-    required this.surahName,
-    required this.ayatMulai,
-    required this.ayatSelesai,
-    required this.totalBaris,
-    required this.lineIds,
-  });
-
-  String get partText => '$surahName • Ayat $ayatMulai–$ayatSelesai';
-
-  Map<String, dynamic> toJson() => {
-        'surahNumber': surahNumber,
-        'surahName': surahName,
-        'ayatMulai': ayatMulai,
-        'ayatSelesai': ayatSelesai,
-        'totalBaris': totalBaris,
-        'lineIds': lineIds,
-      };
-
-  factory TahfizhSegment.fromJson(Map<String, dynamic> json) => TahfizhSegment(
-        surahNumber: json['surahNumber'] as int,
-        surahName: json['surahName'] as String,
-        ayatMulai: json['ayatMulai'] as int,
-        ayatSelesai: json['ayatSelesai'] as int,
-        totalBaris: json['totalBaris'] as int? ?? 0,
-        lineIds: (json['lineIds'] as List?)?.map((e) => e as String).toList() ?? const [],
-      );
-}
-
-/// Satu segmen "bentuk Tilawah": surah + rentang ayat TANPA hitung baris.
-/// Dipakai untuk Tahsin bermode Tilawah, bagian Tahsin di Tahsin+Tahfizh
-/// (saat modenya Tilawah), dan Muroja'ah/Tasmi'. Bisa lebih dari satu
-/// segmen dengan alasan yang sama seperti [TahfizhSegment].
-class TilawahSegment {
-  final int surahNumber;
-  final String surahName;
-  final int ayatMulai;
-  final int ayatSelesai;
-
-  const TilawahSegment({
-    required this.surahNumber,
-    required this.surahName,
-    required this.ayatMulai,
-    required this.ayatSelesai,
-  });
-
-  String get partText => '$surahName • Ayat $ayatMulai–$ayatSelesai';
-
-  Map<String, dynamic> toJson() => {
-        'surahNumber': surahNumber,
-        'surahName': surahName,
-        'ayatMulai': ayatMulai,
-        'ayatSelesai': ayatSelesai,
-      };
-
-  factory TilawahSegment.fromJson(Map<String, dynamic> json) => TilawahSegment(
-        surahNumber: json['surahNumber'] as int,
-        surahName: json['surahName'] as String,
-        ayatMulai: json['ayatMulai'] as int,
-        ayatSelesai: json['ayatSelesai'] as int,
-      );
-}
-
-/// Satu baris laporan capaian hafalan/tahsin seorang santri pada satu tanggal.
 class SantriRecord {
   final String id;
   final DateTime tanggal;
@@ -132,6 +61,12 @@ class SantriRecord {
 
   final String? catatan;
 
+  // Nilai bebas ketik dari guru (mis. "85", "A", "Mumtaz") — opsional,
+  // laporan lama/belum dinilai null. Sama seperti field guru app lainnya,
+  // bukan angka standar (jangan di-parse sebagai int) — tampilkan apa
+  // adanya.
+  final String? nilai;
+
   // Folder tempat laporan ini disimpan (null = tidak di dalam folder mana pun,
   // tampil di section "Laporan" biasa).
   final String? folderId;
@@ -168,6 +103,7 @@ class SantriRecord {
     this.tilawahAyatSelesai,
     this.tilawahSegments,
     this.catatan,
+    this.nilai,
     this.folderId,
     this.ownerId,
   });
@@ -195,6 +131,7 @@ class SantriRecord {
     int? tilawahAyatSelesai,
     List<TilawahSegment>? tilawahSegments,
     String? catatan,
+    String? nilai,
     String? folderId,
     bool clearTahfizh = false,
     bool clearTahsin = false,
@@ -229,127 +166,9 @@ class SantriRecord {
           clearTilawah ? null : (tilawahAyatSelesai ?? this.tilawahAyatSelesai),
       tilawahSegments: clearTilawah ? null : (tilawahSegments ?? this.tilawahSegments),
       catatan: catatan ?? this.catatan,
+      nilai: nilai ?? this.nilai,
       folderId: clearFolder ? null : (folderId ?? this.folderId),
     );
-  }
-
-  /// Semua segmen Tahfizh laporan ini. Kalau [tahfizhSegments] belum ada
-  /// (data lama sebelum fitur multi-surah), otomatis di-generate 1 segmen
-  /// dari field tunggal surahNumber/surahName/ayatMulai/ayatSelesai +
-  /// totalBaris/lineIds — jadi laporan lama tetap kebaca normal.
-  List<TahfizhSegment> get tahfizhSegmentsEffective {
-    if (tahfizhSegments != null && tahfizhSegments!.isNotEmpty) return tahfizhSegments!;
-    if (surahNumber != null && surahName != null && ayatMulai != null && ayatSelesai != null) {
-      return [
-        TahfizhSegment(
-          surahNumber: surahNumber!,
-          surahName: surahName!,
-          ayatMulai: ayatMulai!,
-          ayatSelesai: ayatSelesai!,
-          totalBaris: totalBaris ?? 0,
-          lineIds: lineIds ?? const [],
-        ),
-      ];
-    }
-    return const [];
-  }
-
-  /// Semua segmen Tilawah laporan ini (dipakai Tahsin-mode-Tilawah &
-  /// Muroja'ah/Tasmi'). Fallback yang sama seperti [tahfizhSegmentsEffective]
-  /// buat laporan lama.
-  List<TilawahSegment> get tilawahSegmentsEffective {
-    if (tilawahSegments != null && tilawahSegments!.isNotEmpty) return tilawahSegments!;
-    if (tilawahSurahNumber != null &&
-        tilawahSurahName != null &&
-        tilawahAyatMulai != null &&
-        tilawahAyatSelesai != null) {
-      return [
-        TilawahSegment(
-          surahNumber: tilawahSurahNumber!,
-          surahName: tilawahSurahName!,
-          ayatMulai: tilawahAyatMulai!,
-          ayatSelesai: tilawahAyatSelesai!,
-        ),
-      ];
-    }
-    return const [];
-  }
-
-  /// Teks ringkas bagian Tahsin saja (WAFA atau Tilawah) — dipakai baik
-  /// untuk status Tahsin murni maupun sebagai salah satu bagian dari
-  /// Tahsin+Tahfizh.
-  String get _tahsinPartText {
-    final mode = tahsinMode ?? TahsinMode.wafa; // null = data lama -> WAFA
-    if (mode == TahsinMode.tilawah) {
-      final segs = tilawahSegmentsEffective;
-      if (segs.isEmpty) return 'Tilawah • -';
-      return 'Tilawah • ${segs.map((s) => s.partText).join(' + ')}';
-    }
-    final level = wafaLevel?.label ?? '-';
-    final hal = halamanWafa ?? '-';
-    return '$level • Hal. $hal';
-  }
-
-  /// Teks ringkas bagian Tahfizh saja (hafalan baru, hasil generate baris).
-  /// Kalau lebih dari 1 surah (setoran nyambung lintas surah), digabung
-  /// dengan " + ", mis. "Al-Baqarah • Ayat 280–286 + Ali 'Imran • Ayat 1–5".
-  String get _tahfizhPartText {
-    final segs = tahfizhSegmentsEffective;
-    if (segs.isEmpty) return '-';
-    return segs.map((s) => s.partText).join(' + ');
-  }
-
-  /// Teks ringkas untuk status Muroja'ah/Tasmi' (selalu bentuk Tilawah).
-  String get _murojaahPartText {
-    final segs = tilawahSegmentsEffective;
-    if (segs.isEmpty) return '-';
-    return segs.map((s) => s.partText).join(' + ');
-  }
-
-  /// Total jumlah ayat yang disetorkan di laporan ini — dijumlahkan dari
-  /// SEMUA segmen (Tahfizh + Tilawah, keduanya bisa ada bareng di status
-  /// Tahsin+Tahfizh), dipakai buat chart "Ayat Tersetor/Minggu" di tab
-  /// Statistik. Rentang ayatMulai..ayatSelesai dihitung inklusif kedua
-  /// ujungnya (mis. ayat 5–8 = 4 ayat).
-  int get jumlahAyat {
-    int rangeCount(int mulai, int selesai) =>
-        selesai >= mulai ? (selesai - mulai + 1) : 0;
-    final tahfizh = tahfizhSegmentsEffective.fold<int>(
-      0,
-      (sum, s) => sum + rangeCount(s.ayatMulai, s.ayatSelesai),
-    );
-    final tilawah = tilawahSegmentsEffective.fold<int>(
-      0,
-      (sum, s) => sum + rangeCount(s.ayatMulai, s.ayatSelesai),
-    );
-    return tahfizh + tilawah;
-  }
-
-  /// Ringkasan Muroja'ah/Tasmi' (surah+ayat yang diulang) — versi publik
-  /// dari [_murojaahPartText], alasannya sama dengan [tahsinSummaryText]:
-  /// dipakai di luar kelas ini (hero Beranda Portal Ortu, mode
-  /// Muroja'ah) tanpa perlu tahu detail internal segmennya.
-  String get murojaahSummaryText => _murojaahPartText;
-
-  /// Ringkasan bagian Tahsin saja (WAFA level+halaman, ATAU Tilawah
-  /// surah+ayat — tergantung [tahsinMode] yang dipakai guru saat input,
-  /// bukan cuma WAFA) — versi publik dari [_tahsinPartText], dipakai di
-  /// luar kelas ini (mis. hero Beranda Portal Ortu) buat nampilin
-  /// capaian Tahsin terakhir apa adanya sesuai mode aslinya.
-  String get tahsinSummaryText => _tahsinPartText;
-
-  /// Ringkasan capaian untuk ditampilkan di kartu / laporan.
-  String get capaianText {
-    switch (status) {
-      case HafalanStatus.tahfizh:
-        return _tahfizhPartText;
-      case HafalanStatus.tahsin:
-        return _tahsinPartText;
-      case HafalanStatus.tahsinTahfizh:
-        return '$_tahsinPartText + $_tahfizhPartText';
-      case HafalanStatus.murojaahTasmi:
-        return _murojaahPartText;
-    }
   }
 
   Map<String, dynamic> toJson() => {
@@ -377,6 +196,7 @@ class SantriRecord {
         'tilawahAyatSelesai': tilawahAyatSelesai,
         'tilawahSegments': tilawahSegments?.map((s) => s.toJson()).toList(),
         'catatan': catatan,
+        'nilai': nilai,
         'folderId': folderId,
         'ownerId': ownerId,
       };
@@ -423,9 +243,11 @@ class SantriRecord {
             ?.map((e) => TilawahSegment.fromJson(e as Map<String, dynamic>))
             .toList(),
         catatan: json['catatan'] as String?,
+        nilai: json['nilai'] as String?,
         folderId: json['folderId'] as String?,
         // Field baru — data lama pasti belum punya ini, default null aman
         // (backward compatible, tidak ada migration destructive).
         ownerId: json['ownerId'] as String?,
       );
 }
+

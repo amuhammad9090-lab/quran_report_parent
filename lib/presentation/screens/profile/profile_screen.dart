@@ -4,15 +4,22 @@ import 'package:provider/provider.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/weekly_recap_provider.dart';
 import '../../widgets/misc_widgets.dart';
+import 'widgets/change_password_dialog.dart';
+import 'widgets/profile_row.dart';
 
 /// Profil santri — READ-ONLY total (sesuai brief: "Tidak ada editing
-/// data"). Cuma menampilkan Nama, Kelas, Halaqoh. "Nama
-/// pembimbing/guru" DISENGAJAKAN tidak ditampilkan — brief bilang
-/// "jika memang tersedia", dan [Student] (model shared, tidak diubah)
-/// memang tidak menyimpan referensi ke guru pembimbing. Kalau nanti
-/// data itu tersedia dari backend (STEP 10), tinggal tambah 1 baris di
-/// sini, tidak perlu ubah struktur.
+/// data"). Menampilkan Nama, Kelas, Halaqoh, dan (kalau datanya ada)
+/// Guru Pembimbing.
+///
+/// "Guru Pembimbing" BUKAN dari [Student] (model shared, tidak diubah,
+/// memang tidak menyimpan referensi ke guru) — diambil dari
+/// [WeeklyRecapProvider.guruPembimbingNama] (field [WeeklyRecap.
+/// guruPembimbing], dikirim guru pas "Deploy" rekap pekanan). Makanya
+/// barisnya CUMA tampil kalau ada isinya: keluarga yang guru-nya belum
+/// pernah deploy rekap pekanan sama sekali, atau baru mulai pakai app
+/// ini, idak akan punya data ini dulu — itu kondisi normal, bukan bug.
 ///
 /// Satu-satunya aksi di layar ini adalah **logout** — bukan mutasi data,
 /// jadi tidak melanggar prinsip read-only.
@@ -24,6 +31,7 @@ class ProfileScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final student = auth.currentStudent!;
     final cs = Theme.of(context).colorScheme;
+    final guruNama = context.watch<WeeklyRecapProvider>().guruPembimbingNama;
 
     return Scaffold(
       appBar: AppBar(
@@ -44,13 +52,22 @@ class ProfileScreen extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  CircleAvatar(
+                  // BUG FIX: sebelumnya `CircleAvatar` polos di sini SELALU
+                  // nampilin inisial doang, nggak pernah baca
+                  // `auth.profilePhotoBase64` sama sekali — jadi kalau orang
+                  // tua upload foto profil lewat tab Akun (`AvatarWithEdit
+                  // Button`, yang udah bener), tab Profil ini tetap nampilin
+                  // inisial terus, seolah fotonya nggak pernah ke-upload.
+                  // Diganti ke `ProfileAvatar` yang sama persis dipakai di
+                  // tab Akun, biar kedua tempat selalu sinkron (read-only,
+                  // nggak ada tombol edit di sini — ganti foto tetap cuma
+                  // lewat tab Akun).
+                  ProfileAvatar(
+                    photoBase64: auth.profilePhotoBase64,
+                    initials: _initials(student.nama),
                     radius: 40,
                     backgroundColor: cs.primary.withValues(alpha: 0.12),
-                    child: Text(
-                      _initials(student.nama),
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: cs.primary),
-                    ),
+                    foregroundColor: cs.primary,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -70,11 +87,21 @@ class ProfileScreen extends StatelessWidget {
             Card(
               child: Column(
                 children: [
-                  _ProfileRow(icon: Icons.badge_rounded, label: 'Nama', value: student.nama),
+                  ProfileRow(icon: Icons.badge_rounded, label: 'Nama', value: student.nama),
                   const Divider(height: 1),
-                  _ProfileRow(icon: Icons.class_rounded, label: 'Kelas', value: student.kelas),
+                  ProfileRow(icon: Icons.class_rounded, label: 'Kelas', value: student.kelas),
                   const Divider(height: 1),
-                  _ProfileRow(icon: Icons.groups_rounded, label: 'Halaqoh', value: student.halaqoh),
+                  ProfileRow(icon: Icons.groups_rounded, label: 'Halaqoh', value: student.halaqoh),
+                  // Cuma tampil kalau datanya ada -- lihat doc comment
+                  // [ProfileScreen] di atas kenapa ini bisa null.
+                  if (guruNama != null) ...[
+                    const Divider(height: 1),
+                    ProfileRow(
+                      icon: Icons.person_rounded,
+                      label: 'Guru Pembimbing',
+                      value: guruNama,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -131,7 +158,7 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _openChangePassword(BuildContext context) async {
     final changed = await showDialog<bool>(
       context: context,
-      builder: (_) => const _ChangePasswordDialog(),
+      builder: (_) => const ChangePasswordDialog(),
     );
     if (changed == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,142 +180,6 @@ class ProfileScreen extends StatelessWidget {
 /// konfirmasinya. Lihat [AuthProvider.changePassword] — beneran
 /// mengganti password di server Firebase Auth, jadi TIDAK akan balik ke
 /// password lama walau cache browser dihapus.
-class _ChangePasswordDialog extends StatefulWidget {
-  const _ChangePasswordDialog();
-
-  @override
-  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
-}
-
-class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
-  final _currentCtrl = TextEditingController();
-  final _newCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  bool _obscureCurrent = true;
-  bool _obscureNew = true;
-  bool _submitting = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _currentCtrl.dispose();
-    _newCtrl.dispose();
-    _confirmCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final current = _currentCtrl.text;
-    final newPw = _newCtrl.text;
-    final confirm = _confirmCtrl.text;
-
-    if (current.isEmpty || newPw.isEmpty) {
-      setState(() => _error = 'Semua kolom wajib diisi.');
-      return;
-    }
-    if (newPw.length < 6) {
-      setState(() => _error = 'Password baru minimal 6 karakter.');
-      return;
-    }
-    if (newPw != confirm) {
-      setState(() => _error = 'Konfirmasi password baru tidak cocok.');
-      return;
-    }
-
-    setState(() {
-      _submitting = true;
-      _error = null;
-    });
-
-    final error = await context.read<AuthProvider>().changePassword(
-          currentPassword: current,
-          newPassword: newPw,
-        );
-
-    if (!mounted) return;
-    if (error == null) {
-      Navigator.pop(context, true);
-    } else {
-      setState(() {
-        _submitting = false;
-        _error = error;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return AlertDialog(
-      title: const Text('Ganti Password'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _currentCtrl,
-              obscureText: _obscureCurrent,
-              enabled: !_submitting,
-              decoration: InputDecoration(
-                labelText: 'Password Lama',
-                suffixIcon: IconButton(
-                  icon: Icon(_obscureCurrent ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                  onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _newCtrl,
-              obscureText: _obscureNew,
-              enabled: !_submitting,
-              decoration: InputDecoration(
-                labelText: 'Password Baru',
-                suffixIcon: IconButton(
-                  icon: Icon(_obscureNew ? Icons.visibility_rounded : Icons.visibility_off_rounded),
-                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _confirmCtrl,
-              obscureText: _obscureNew,
-              enabled: !_submitting,
-              decoration: const InputDecoration(labelText: 'Konfirmasi Password Baru'),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: cs.error, fontSize: 12.5)),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context, false),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Simpan'),
-        ),
-      ],
-    );
-  }
-}
-
-/// Pemilih Terang / Gelap / Ikuti Sistem — lihat [ThemeProvider].
-/// Ditaruh di tab Profil (satu-satunya "pengaturan" yang dimiliki
-/// portal ini) supaya pilihan tampilan gampang ditemukan tanpa
-/// menambah tab baru.
 class _ThemeModeCard extends StatelessWidget {
   const _ThemeModeCard();
 
@@ -378,27 +269,3 @@ class _ThemeModeOption extends StatelessWidget {
   }
 }
 
-class _ProfileRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _ProfileRow({required this.icon, required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          SoftIconBox(icon: icon, color: cs.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-          ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-}

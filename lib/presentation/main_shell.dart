@@ -27,7 +27,7 @@ import 'screens/settings/settings_screen.dart';
 /// Tab ke-3 SEBELUMNYA "Profil" — sekarang "Pengaturan" (`SettingsScreen`,
 /// isinya cuma tema + tentang aplikasi). Konten Profil lama (Data Santri,
 /// Ganti Password, Logout, foto profil) pindah ke `AccountScreen`, diakses
-/// dengan TAP bulatan akun di hero Beranda (lihat `_DashboardHero` di
+/// dengan TAP bulatan akun di hero Beranda (lihat `DashboardHero` di
 /// `dashboard_screen.dart`) — bukan tab tersendiri lagi.
 ///
 /// `NavigationBar` di sini nanti otomatis ambil style dari `AppTheme`
