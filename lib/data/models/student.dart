@@ -27,6 +27,16 @@ class Student {
   /// akun, lihat masing-masing repo).
   final String? guruAccountId;
 
+  /// BARU: nama tampilan guru pembimbing (UserAccount.displayName di app
+  /// guru), ditulis bebarengan dengan [guruAccountId] di
+  /// ApiStudentRepository app guru. Portal Ortu pakai ini buat nampilin
+  /// "Guru Pembimbing" di Profile — lebih bisa diandalkan daripada
+  /// `WeeklyRecap.guruPembimbing` (yang cuma keisi kalau guru pernah
+  /// deploy rekap pekanan), karena field ini ke-update tiap kali
+  /// kelas/halaqoh santri di-assign/diubah, terlepas dari rekap. Null =
+  /// data lama / belum ke-assign guru (sama seperti [guruAccountId]).
+  final String? guruNama;
+
   const Student({
     required this.id,
     required this.nama,
@@ -34,6 +44,7 @@ class Student {
     required this.halaqoh,
     this.schoolId,
     this.guruAccountId,
+    this.guruNama,
   });
 
   Map<String, dynamic> toJson() => {
@@ -43,6 +54,7 @@ class Student {
         'halaqoh': halaqoh,
         'schoolId': schoolId,
         'guruAccountId': guruAccountId,
+        'guruNama': guruNama,
       };
 
   factory Student.fromJson(Map<String, dynamic> json) => Student(
@@ -52,5 +64,6 @@ class Student {
         halaqoh: normalizeHalaqoh(json['halaqoh'] as String),
         schoolId: json['schoolId'] as String?,
         guruAccountId: json['guruAccountId'] as String?,
+        guruNama: json['guruNama'] as String?,
       );
 }

@@ -13,13 +13,19 @@ import 'widgets/profile_row.dart';
 /// data"). Menampilkan Nama, Kelas, Halaqoh, dan (kalau datanya ada)
 /// Guru Pembimbing.
 ///
-/// "Guru Pembimbing" BUKAN dari [Student] (model shared, tidak diubah,
-/// memang tidak menyimpan referensi ke guru) — diambil dari
-/// [WeeklyRecapProvider.guruPembimbingNama] (field [WeeklyRecap.
-/// guruPembimbing], dikirim guru pas "Deploy" rekap pekanan). Makanya
-/// barisnya CUMA tampil kalau ada isinya: keluarga yang guru-nya belum
-/// pernah deploy rekap pekanan sama sekali, atau baru mulai pakai app
-/// ini, idak akan punya data ini dulu — itu kondisi normal, bukan bug.
+/// "Guru Pembimbing" diambil dari `student.guruNama` (denormalisasi dari
+/// `UserAccount.displayName` di app guru, ditulis ApiStudentRepository
+/// tiap kali kelas/halaqoh santri di-assign/diubah — lihat doc comment
+/// [Student.guruNama]). Ini sumber UTAMA karena selalu ter-update terlepas
+/// dari ada/tidaknya rekap pekanan, dan Portal Ortu memang tidak boleh
+/// baca dokumen `accounts/{accountId}` guru langsung (lihat firestore.rules).
+///
+/// Fallback ke [WeeklyRecapProvider.guruPembimbingNama] (field [WeeklyRecap.
+/// guruPembimbing], dikirim guru pas "Deploy" rekap pekanan) buat data lama
+/// yang belum sempat ke-backfill `guruNama`-nya. Kalau keduanya kosong,
+/// barisnya disembunyikan total — keluarga yang guru-nya belum pernah
+/// assign kelas/halaqoh maupun deploy rekap pekanan sama sekali tidak akan
+/// punya data ini dulu, itu kondisi normal, bukan bug.
 ///
 /// Satu-satunya aksi di layar ini adalah **logout** — bukan mutasi data,
 /// jadi tidak melanggar prinsip read-only.
@@ -31,7 +37,9 @@ class ProfileScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final student = auth.currentStudent!;
     final cs = Theme.of(context).colorScheme;
-    final guruNama = context.watch<WeeklyRecapProvider>().guruPembimbingNama;
+    final guruNamaFallback = context.watch<WeeklyRecapProvider>().guruPembimbingNama;
+    final guruNamaRaw = student.guruNama?.trim();
+    final guruNama = (guruNamaRaw != null && guruNamaRaw.isNotEmpty) ? guruNamaRaw : guruNamaFallback;
 
     return Scaffold(
       appBar: AppBar(

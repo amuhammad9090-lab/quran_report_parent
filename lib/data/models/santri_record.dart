@@ -67,6 +67,13 @@ class SantriRecord {
   // adanya.
   final String? nilai;
 
+  // Ketuntasan setoran hari itu: true = Tuntas, false = Tidak Tuntas,
+  // null = belum dinilai ketuntasannya (laporan lama, atau guru belum
+  // isi). Field ini READ-ONLY di Portal Ortu (ditulis dari app guru) —
+  // sama persis nama & tipe field-nya kayak `SantriRecord.tuntas` di app
+  // guru, biar langsung kebaca tanpa perlu migrasi data.
+  final bool? tuntas;
+
   // Folder tempat laporan ini disimpan (null = tidak di dalam folder mana pun,
   // tampil di section "Laporan" biasa).
   final String? folderId;
@@ -104,6 +111,7 @@ class SantriRecord {
     this.tilawahSegments,
     this.catatan,
     this.nilai,
+    this.tuntas,
     this.folderId,
     this.ownerId,
   });
@@ -132,11 +140,13 @@ class SantriRecord {
     List<TilawahSegment>? tilawahSegments,
     String? catatan,
     String? nilai,
+    bool? tuntas,
     String? folderId,
     bool clearTahfizh = false,
     bool clearTahsin = false,
     bool clearTilawah = false,
     bool clearFolder = false,
+    bool clearTuntas = false,
   }) {
     return SantriRecord(
       id: id,
@@ -167,6 +177,7 @@ class SantriRecord {
       tilawahSegments: clearTilawah ? null : (tilawahSegments ?? this.tilawahSegments),
       catatan: catatan ?? this.catatan,
       nilai: nilai ?? this.nilai,
+      tuntas: clearTuntas ? null : (tuntas ?? this.tuntas),
       folderId: clearFolder ? null : (folderId ?? this.folderId),
     );
   }
@@ -197,6 +208,7 @@ class SantriRecord {
         'tilawahSegments': tilawahSegments?.map((s) => s.toJson()).toList(),
         'catatan': catatan,
         'nilai': nilai,
+        'tuntas': tuntas,
         'folderId': folderId,
         'ownerId': ownerId,
       };
@@ -244,6 +256,7 @@ class SantriRecord {
             .toList(),
         catatan: json['catatan'] as String?,
         nilai: json['nilai'] as String?,
+        tuntas: json['tuntas'] as bool?,
         folderId: json['folderId'] as String?,
         // Field baru — data lama pasti belum punya ini, default null aman
         // (backward compatible, tidak ada migration destructive).

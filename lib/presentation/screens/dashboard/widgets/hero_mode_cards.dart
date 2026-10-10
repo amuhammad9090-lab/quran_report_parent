@@ -6,12 +6,7 @@ import 'hero_icon_badge.dart';
 class BarisBigPill extends StatelessWidget {
   final int baris;
   final int? target;
-  // <-- BARU: dulu widget ini cuma terima angka baris+target (bukan
-  // record), jadi gak ada cara nampilin [SantriRecord.nilai] punya
-  // laporan terakhir. Dibikin OPSIONAL (nullable) biar pemanggil lama
-  // yang mungkin belum sempat diupdate tetap kompile.
-  final SantriRecord? record;
-  const BarisBigPill({super.key, required this.baris, required this.target, this.record});
+  const BarisBigPill({super.key, required this.baris, required this.target});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +37,6 @@ class BarisBigPill extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          _NilaiBadge(nilai: record?.nilai),
         ],
       ),
     );
@@ -83,7 +77,6 @@ class TahsinBigCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          _NilaiBadge(nilai: record.nilai),
         ],
       ),
     );
@@ -146,46 +139,7 @@ class MurojaahBigCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          _NilaiBadge(nilai: record.nilai),
         ],
-      ),
-    );
-  }
-}
-
-/// Badge kecil "Nilai: ..." di bawah 3 kartu mode hero — cuma tampil
-/// kalau [nilai] ada isinya (laporan lama/belum dinilai guru = null,
-/// jangan tampilin apa-apa, bukan "Nilai: -"). Style disamain sama
-/// badge nilai di app guru sendiri (`santri_report_card.dart`): bg
-/// tertiaryContainer, teks bold kecil — biar ortu langsung ngeh ini
-/// konsep yang sama kayak yang guru lihat.
-class _NilaiBadge extends StatelessWidget {
-  final String? nilai;
-  const _NilaiBadge({required this.nilai});
-
-  @override
-  Widget build(BuildContext context) {
-    final value = nilai?.trim();
-    if (value == null || value.isEmpty) return const SizedBox.shrink();
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: cs.tertiaryContainer.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          'Nilai $value',
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
-            color: cs.onTertiaryContainer,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
       ),
     );
   }

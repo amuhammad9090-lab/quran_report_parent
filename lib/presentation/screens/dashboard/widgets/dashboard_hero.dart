@@ -57,11 +57,29 @@ class DashboardHero extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
+                // <-- BARU: grid 2x2 (bukan 1 baris lagi) — sekarang ada 4
+                // stat (Kehadiran, Ketuntasan, Nilai, Capaian), dan 4 pill
+                // sempit berjejer dalam 1 baris bakal kepotong teksnya di
+                // layar HP. Grid 2 baris x 2 kolom tetap ngasih tiap pill
+                // ruang yang cukup buat angka+label, dan polanya familiar
+                // (mirip kartu statistik di app lain) jadi "kebaca" sekali
+                // lihat tanpa perlu scroll horizontal.
                 IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(child: _KehadiranMiniStat(dash: dash)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _KetuntasanMiniStat(tuntas: latest?.tuntas)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _NilaiMiniStat(nilai: latest?.nilai)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: switch (focus) {
@@ -69,7 +87,7 @@ class DashboardHero extends StatelessWidget {
                           HeroFocus.murojaah =>
                             MurojaahBigCard(record: latest!),
                           HeroFocus.tahfizh =>
-                            BarisBigPill(baris: baris, target: target, record: latest),
+                            BarisBigPill(baris: baris, target: target),
                         },
                       ),
                     ],
@@ -118,6 +136,84 @@ class _KehadiranMiniStat extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Pill Ketuntasan — status setoran laporan TERAKHIR ([SantriRecord.
+/// tuntas], denormalisasi field dari app guru). 3 kondisi, dibedakan lewat
+/// IKON (bukan warna — tetap translucent putih biar konsisten sama pill
+/// lain di hero, "Belum Tuntas" bukan kondisi error jadi sengaja tidak
+/// dikasih warna merah): Tuntas (centang), Belum Tuntas (jam pasir), dan
+/// "—" kalau laporan lama belum pernah dinilai ketuntasannya (null, BUKAN
+/// otomatis dianggap "belum tuntas").
+class _KetuntasanMiniStat extends StatelessWidget {
+  final bool? tuntas;
+  const _KetuntasanMiniStat({required this.tuntas});
+
+  @override
+  Widget build(BuildContext context) {
+    final known = tuntas != null;
+    final icon = !known
+        ? Icons.remove_rounded
+        : (tuntas! ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded);
+    final value = !known ? '—' : (tuntas! ? 'Tuntas' : 'Belum');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      alignment: Alignment.center,
+      decoration: HeroStatBox.decoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          HeroIconBadge(icon: icon),
+          const SizedBox(height: 6),
+          Text(value, style: HeroStatBox.valueStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 1),
+          Text(
+            'Ketuntasan',
+            style: HeroStatBox.labelStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pill Nilai — [SantriRecord.nilai] dari laporan terakhir (teks bebas
+/// dari guru, mis. "85" / "A" / "Mumtaz"). Dulu cuma badge kecil nempel di
+/// kartu Capaian; sekarang jadi pill sendiri (permintaan user: "jadi 3
+/// pill") biar sama tingkat pentingnya kayak Kehadiran/Ketuntasan/Capaian.
+class _NilaiMiniStat extends StatelessWidget {
+  final String? nilai;
+  const _NilaiMiniStat({required this.nilai});
+
+  @override
+  Widget build(BuildContext context) {
+    final value = nilai?.trim();
+    final has = value != null && value.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      alignment: Alignment.center,
+      decoration: HeroStatBox.decoration,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const HeroIconBadge(icon: Icons.star_rounded),
+          const SizedBox(height: 6),
+          Text(
+            has ? value : '—',
+            style: HeroStatBox.valueStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          Text('Nilai', style: HeroStatBox.labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }
