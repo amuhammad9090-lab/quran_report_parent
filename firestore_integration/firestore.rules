@@ -31,6 +31,45 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------- Collection-group queries admin (level ROOT) ----------
+    //
+    // <-- BARU (fix: laporan guru tidak muncul di HP admin saat "Pulihkan dari cloud"):
+    // rule collectionGroup yang ada di dalam `match /schools/{schoolId}` di bawah TIDAK cukup.
+    // `collectionGroup('laporan')`/`('folders')` itu query lintas SELURUH database, bukan di bawah
+    // satu sekolah; Firestore hanya menerimanya kalau ada rule `{path=**}` di level root
+    // `documents` (rule yang bersarang di bawah schools/{schoolId} cuma menutup path di bawah
+    // schoolId itu, jadi query-nya ditolak permission-denied walau admin sudah benar).
+    // Fungsinya sengaja ditulis ulang di sini karena helper di bawah (isAdmin(), dst) hanya
+    // terlihat di dalam match /schools/{schoolId}. Cuma READ untuk admin; tulis tetap lewat rule
+    // per-guru. Rule nested di bawah tetap dibiarkan (hasil kedua rule di-OR, tidak bentrok).
+    // Satu sekolah saja (kSchoolId di app_config.dart), jadi id-nya ditulis langsung.
+    function isAdminRoot() {
+      return request.auth != null &&
+        request.auth.token.email != null &&
+        (
+          request.auth.token.email.lower() in [
+            'admin@quranreport-admin.app',
+            'a.muhammad9090@gmail.com'
+          ] ||
+          (
+            request.auth.token.firebase.sign_in_provider == 'google.com' &&
+            get(/databases/$(database)/documents/schools/smpit_al_madinah_tanjungpinang/accountsByEmail/$(request.auth.token.email.lower())).data.get('isAdmin', false) == true
+          )
+        );
+    }
+    match /{path=**}/laporan/{recordId} {
+      allow read: if isAdminRoot();
+    }
+    match /{path=**}/folders/{folderId} {
+      allow read: if isAdminRoot();
+    }
+    // Notifikasi admin (ParentNoteService.watchAll) membaca catatan ortu lintas guru lewat
+    // collectionGroup('parentNotes'), jadi butuh rule {path=**} juga (read saja).
+    match /{path=**}/parentNotes/{noteId} {
+      allow read: if isAdminRoot();
+    }
+
     match /schools/{schoolId} {
 
       // ---------- Helper functions ----------
@@ -50,12 +89,38 @@ service cloud.firestore {
       // accounts/*, sementara server nolak (bukan admin menurut daftar
       // ini) -> permission-denied. Gap ini sudah ada sejak migrasi ke
       // isAdmin()/isOwnAccount(), cuma baru ketauan sekarang.
-      function isAdmin() {
+      //
+      // <-- BERUBAH (fix: role admin dari app tidak berlaku di server): isAdmin() dulu HANYA
+      // percaya daftar email hardcode di atas, jadi mengubah `role` jadi admin (lewat Kelola
+      // Akun Guru atau manual di Console) cuma mengubah pandangan CLIENT; server tetap menolak
+      // (permission-denied) karena emailnya tidak ada di daftar. Sekarang admin = SALAH SATU dari:
+      //   1. email bootstrap hardcode (admin pertama, tidak bergantung data apa pun), ATAU
+      //   2. dokumen index `accountsByEmail/{email-sendiri}` punya `isAdmin: true`.
+      // Flag di (2) SENGAJA ditaruh di accountsByEmail, BUKAN dibaca dari `accounts/{id}.role`,
+      // karena `accounts/{id}` boleh ditulis pemiliknya sendiri (isOwnAccount) -- kalau role di
+      // situ jadi dasar izin, guru biasa bisa menaikkan dirinya jadi admin. accountsByEmail cuma
+      // boleh ditulis admin (lihat rule-nya di bawah), jadi aman.
+      function isBootstrapAdmin() {
         return request.auth != null &&
-          request.auth.token.email in [
+          request.auth.token.email != null &&
+          request.auth.token.email.lower() in [
             'admin@quranreport-admin.app',
             'a.muhammad9090@gmail.com'
           ];
+      }
+      function isAdminByIndex() {
+        return isGuruApp() &&
+          get(/databases/$(database)/documents/schools/$(schoolId)/accountsByEmail/$(request.auth.token.email.lower())).data.get('isAdmin', false) == true;
+      }
+      function isAdmin() {
+        return isBootstrapAdmin() || isAdminByIndex();
+      }
+      // Pengawas (kepala sekolah/wakakur): BACA semua data seperti admin, TIDAK BISA tulis.
+      // Flag `isViewer` ada di accountsByEmail (hanya admin yang bisa menulisnya), alasan sama
+      // seperti isAdmin: dokumen accounts/{id} bisa ditulis pemiliknya, jadi tidak dipercaya.
+      function isViewer() {
+        return isGuruApp() &&
+          get(/databases/$(database)/documents/schools/$(schoolId)/accountsByEmail/$(request.auth.token.email.lower())).data.get('isViewer', false) == true;
       }
       function isGuruApp() {
         return request.auth != null &&
@@ -92,6 +157,13 @@ service cloud.firestore {
         allow write: if isAdmin();
       }
 
+      // Standar ketuntasan (target baris & KKM nilai): semua pengguna app guru boleh baca,
+      // hanya admin yang boleh mengubah.
+      match /settings/{docId} {
+        allow read: if isAdmin() || isGuruApp();
+        allow write: if isAdmin();
+      }
+
       // Data master santri (dipakai autocomplete + Portal Ortu resolve
       // guruAccountId). Field baru `guruAccountId` ditulis di sini juga.
       //
@@ -119,10 +191,11 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoBase64', 'photoUpdatedAt']);
       }
 
-      // Info versi terbaru app Android (Portal Ortu) buat fitur update
-      // in-app. Dibaca app SEBELUM/SESUDAH login, isinya cuma nomor
-      // versi + link APK + changelog (tidak sensitif) => read publik.
-      // Tulis cuma admin (atau lewat Firebase Console).
+      // Info versi terbaru app Android/web (fitur update in-app), dipakai
+      // app guru (`appConfig/guru_android`) dan Portal Orang Tua
+      // (`appConfig/parent_android`). Isinya cuma nomor versi + link APK +
+      // changelog (tidak sensitif) => read publik. Tulis cuma admin (atau
+      // lewat Firebase Console).
       match /appConfig/{docId} {
         allow read: if true;
         allow write: if isAdmin();
@@ -153,6 +226,9 @@ service cloud.firestore {
       match /{path=**}/folders/{folderId} {
         allow read: if isAdmin();
       }
+      match /{path=**}/parentNotes/{noteId} {
+        allow read: if isAdmin();
+      }
 
       // ---------- Data per-guru (BARU: nested) ----------
 
@@ -160,14 +236,15 @@ service cloud.firestore {
         // Profil guru sendiri. Admin boleh kelola semua (Kelola Akun
         // Guru); guru biasa CUMA boleh baca/tulis profilnya sendiri --
         // beda dari rules lama yang isGuruApp() bebas ke semua akun.
-        allow read: if isAdmin() || isOwnAccount(accountId);
+        allow read: if isAdmin() || isViewer() || isOwnAccount(accountId);
         allow write: if isAdmin() || isOwnAccount(accountId);
 
         // Laporan (ex-santriRecords, flat di root). Guru cuma akses
         // subcollection-nya sendiri; admin semua (lewat isAdmin() di
         // sini, ATAU collectionGroup('laporan') buat lintas-guru).
         match /laporan/{recordId} {
-          allow read, write: if isAdmin() || isOwnAccount(accountId);
+          allow read: if isAdmin() || isViewer() || isOwnAccount(accountId);
+          allow write: if isAdmin() || (isOwnAccount(accountId) && !isViewer());
           // Portal Ortu: baca laporan ANAKNYA sendiri, cocokkan
           // kelas+halaqoh+nama (pola sama seperti rules lama) --
           // aman karena 1 halaqoh = 1 guru, jadi cuma ada SATU
@@ -192,7 +269,8 @@ service cloud.firestore {
 
         // Folder laporan (ex-reportFolders, flat di root).
         match /folders/{folderId} {
-          allow read, write: if isAdmin() || isOwnAccount(accountId);
+          allow read: if isAdmin() || isViewer() || isOwnAccount(accountId);
+          allow write: if isAdmin() || (isOwnAccount(accountId) && !isViewer());
         }
 
         // "Kartu identitas kosong" (ex-appMeta, flat di root).
@@ -222,7 +300,8 @@ service cloud.firestore {
         // Rekap pekanan yang di-deploy ke orang tua (ex-weeklyRecaps,
         // flat di root).
         match /weeklyRecaps/{recapId} {
-          allow read, write: if isAdmin() || isOwnAccount(accountId);
+          allow read: if isAdmin() || isOwnAccount(accountId);
+          allow write: if isAdmin() || (isOwnAccount(accountId) && !isViewer());
           // <-- BERUBAH (audit keamanan, defense-in-depth): dikunci juga
           // ke accountId = guruAccountId santrinya sendiri, sama alasan
           // seperti di /laporan di atas.
