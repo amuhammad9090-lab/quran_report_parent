@@ -97,32 +97,34 @@ class WeeklyRecapDetailSheet extends StatelessWidget {
               const SizedBox(height: 16),
             ],
             if (hasRingkasan) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (hasBaris)
-                    Expanded(
-                      child: _SummaryChip(
-                        icon: Icons.menu_book_rounded,
-                        value: '${recap.totalBaris}',
-                        label: 'Baris',
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasBaris)
+                      Expanded(
+                        child: _SummaryChip(
+                          icon: Icons.menu_book_rounded,
+                          value: '${recap.totalBaris}',
+                          label: 'Baris',
+                        ),
                       ),
-                    ),
-                  if (hasBaris && (hasNilai || hasStatus)) const SizedBox(width: 10),
-                  if (hasNilai)
-                    Expanded(
-                      child: _SummaryChip(icon: Icons.star_rounded, value: nilai, label: 'Nilai'),
-                    ),
-                  if (hasNilai && hasStatus) const SizedBox(width: 10),
-                  if (hasStatus)
-                    Expanded(
-                      child: _SummaryChip(
-                        icon: status == 'Tuntas' ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded,
-                        value: status,
-                        label: 'Ketuntasan',
+                    if (hasBaris && (hasNilai || hasStatus)) const SizedBox(width: 10),
+                    if (hasNilai)
+                      Expanded(
+                        child: _SummaryChip(icon: Icons.star_rounded, value: nilai, label: 'Nilai'),
                       ),
-                    ),
-                ],
+                    if (hasNilai && hasStatus) const SizedBox(width: 10),
+                    if (hasStatus)
+                      Expanded(
+                        child: _SummaryChip(
+                          icon: status == 'Tuntas' ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded,
+                          value: status,
+                          label: 'Ketuntasan',
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 18),
             ],
