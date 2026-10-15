@@ -70,7 +70,7 @@ class DashboardHero extends StatelessWidget {
                     children: [
                       Expanded(child: _KehadiranMiniStat(dash: dash)),
                       const SizedBox(width: 12),
-                      Expanded(child: _KetuntasanMiniStat(tuntas: latest?.tuntas)),
+                      Expanded(child: _KetuntasanMiniStat(tuntasPekan: latest?.tuntasPekan)),
                     ],
                   ),
                 ),
@@ -141,24 +141,26 @@ class _KehadiranMiniStat extends StatelessWidget {
   }
 }
 
-/// Pill Ketuntasan — status setoran laporan TERAKHIR ([SantriRecord.
-/// tuntas], denormalisasi field dari app guru). 3 kondisi, dibedakan lewat
-/// IKON (bukan warna — tetap translucent putih biar konsisten sama pill
-/// lain di hero, "Belum Tuntas" bukan kondisi error jadi sengaja tidak
-/// dikasih warna merah): Tuntas (centang), Belum Tuntas (jam pasir), dan
-/// "—" kalau laporan lama belum pernah dinilai ketuntasannya (null, BUKAN
-/// otomatis dianggap "belum tuntas").
+/// Pill Ketuntasan — keputusan guru untuk PEKAN laporan terakhir
+/// ([SantriRecord.tuntasPekan], ditulis app guru cuma di laporan
+/// TERAKHIR tiap pekan lewat layar "Generate Laporan Pekanan" — BUKAN
+/// otomatis per laporan harian, lihat doc comment di model). 3 kondisi,
+/// dibedakan lewat IKON (bukan warna — tetap translucent putih biar
+/// konsisten sama pill lain di hero, "Belum Tuntas" bukan kondisi error
+/// jadi sengaja tidak dikasih warna merah): Tuntas (centang), Belum
+/// Tuntas (jam pasir), dan "—" kalau guru belum sempat memutuskan pekan
+/// ini (null, BUKAN otomatis dianggap "belum tuntas").
 class _KetuntasanMiniStat extends StatelessWidget {
-  final bool? tuntas;
-  const _KetuntasanMiniStat({required this.tuntas});
+  final bool? tuntasPekan;
+  const _KetuntasanMiniStat({required this.tuntasPekan});
 
   @override
   Widget build(BuildContext context) {
-    final known = tuntas != null;
+    final known = tuntasPekan != null;
     final icon = !known
         ? Icons.remove_rounded
-        : (tuntas! ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded);
-    final value = !known ? '—' : (tuntas! ? 'Tuntas' : 'Belum');
+        : (tuntasPekan! ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded);
+    final value = !known ? '—' : (tuntasPekan! ? 'Tuntas' : 'Belum');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),

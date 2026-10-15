@@ -53,6 +53,19 @@ class WeeklyRecap {
   final int totalBaris;
   final String keterangan;
   final String catatan;
+
+  /// BARU — [SantriWeeklyRow.nilai]/`.status` dari app guru (sudah lama
+  /// dihitung buat tabel "Generate Laporan Pekanan", tapi baru sekarang
+  /// ikut ditulis ke dokumen `weeklyRecaps`). `status` teks siap-tampil
+  /// ("Tuntas" / "Tidak Tuntas" / "-"), sumbernya `StandarKetuntasan.
+  /// manualPekan` — keputusan MANUAL guru per pekan (tombol di layar
+  /// Generate Laporan Pekanan), bukan saran otomatis dari standar
+  /// baris/KKM. Default `''` untuk dokumen lama (sebelum field ini ada)
+  /// supaya pemanggil tidak perlu cek null — baris UI cukup cek `.trim().
+  /// isEmpty` sama seperti field teks lain di model ini (`catatan`, dst).
+  final String nilai;
+  final String status;
+
   final DateTime? deployedAt;
   final String? deployedByNama;
 
@@ -76,6 +89,8 @@ class WeeklyRecap {
     required this.totalBaris,
     required this.keterangan,
     required this.catatan,
+    this.nilai = '',
+    this.status = '',
     this.guruPembimbing,
     this.deployedAt,
     this.deployedByNama,
@@ -106,6 +121,8 @@ class WeeklyRecap {
       totalBaris: json['totalBaris'] as int? ?? 0,
       keterangan: json['keterangan'] as String? ?? '',
       catatan: json['catatan'] as String? ?? '',
+      nilai: json['nilai'] as String? ?? '',
+      status: json['status'] as String? ?? '',
       deployedAt: ts is DateTime ? ts : null,
       deployedByNama: json['deployedByNama'] as String?,
       weekStart: wStart is DateTime ? wStart : null,

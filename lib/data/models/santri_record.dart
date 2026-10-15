@@ -67,12 +67,18 @@ class SantriRecord {
   // adanya.
   final String? nilai;
 
-  // Ketuntasan setoran hari itu: true = Tuntas, false = Tidak Tuntas,
-  // null = belum dinilai ketuntasannya (laporan lama, atau guru belum
-  // isi). Field ini READ-ONLY di Portal Ortu (ditulis dari app guru) —
-  // sama persis nama & tipe field-nya kayak `SantriRecord.tuntas` di app
-  // guru, biar langsung kebaca tanpa perlu migrasi data.
-  final bool? tuntas;
+  // <-- BERUBAH (bug fix: nama field salah tebak, hasilnya SELALU null):
+  // keputusan guru Tuntas/Tidak Tuntas untuk SATU PEKAN (bukan per
+  // laporan harian) — true = Tuntas, false = Tidak Tuntas, null = guru
+  // belum memutuskan pekan ini (laporan lama, atau belum sempat buka
+  // "Generate Laporan Pekanan" & pencet tombolnya). Field ini CUMA
+  // keisi di laporan TERAKHIR santri pada pekan itu (lihat app guru:
+  // `SantriRecord.tuntasPekan` / `GenerateRekapPekananScreen._setTuntas`
+  // / `StandarKetuntasan.manualPekanValue`) — laporan lain di pekan yang
+  // sama sengaja null. Portal Ortu READ-ONLY, field ini tidak pernah
+  // ditulis dari sini. Nama field HARUS persis `tuntasPekan` (bukan
+  // `tuntas`) karena itu key yang ditulis app guru ke Firestore.
+  final bool? tuntasPekan;
 
   // Folder tempat laporan ini disimpan (null = tidak di dalam folder mana pun,
   // tampil di section "Laporan" biasa).
@@ -111,7 +117,7 @@ class SantriRecord {
     this.tilawahSegments,
     this.catatan,
     this.nilai,
-    this.tuntas,
+    this.tuntasPekan,
     this.folderId,
     this.ownerId,
   });
@@ -140,13 +146,13 @@ class SantriRecord {
     List<TilawahSegment>? tilawahSegments,
     String? catatan,
     String? nilai,
-    bool? tuntas,
+    bool? tuntasPekan,
     String? folderId,
     bool clearTahfizh = false,
     bool clearTahsin = false,
     bool clearTilawah = false,
     bool clearFolder = false,
-    bool clearTuntas = false,
+    bool clearTuntasPekan = false,
   }) {
     return SantriRecord(
       id: id,
@@ -177,7 +183,7 @@ class SantriRecord {
       tilawahSegments: clearTilawah ? null : (tilawahSegments ?? this.tilawahSegments),
       catatan: catatan ?? this.catatan,
       nilai: nilai ?? this.nilai,
-      tuntas: clearTuntas ? null : (tuntas ?? this.tuntas),
+      tuntasPekan: clearTuntasPekan ? null : (tuntasPekan ?? this.tuntasPekan),
       folderId: clearFolder ? null : (folderId ?? this.folderId),
     );
   }
@@ -208,7 +214,7 @@ class SantriRecord {
         'tilawahSegments': tilawahSegments?.map((s) => s.toJson()).toList(),
         'catatan': catatan,
         'nilai': nilai,
-        'tuntas': tuntas,
+        'tuntasPekan': tuntasPekan,
         'folderId': folderId,
         'ownerId': ownerId,
       };
@@ -256,7 +262,7 @@ class SantriRecord {
             .toList(),
         catatan: json['catatan'] as String?,
         nilai: json['nilai'] as String?,
-        tuntas: json['tuntas'] as bool?,
+        tuntasPekan: json['tuntasPekan'] as bool?,
         folderId: json['folderId'] as String?,
         // Field baru — data lama pasti belum punya ini, default null aman
         // (backward compatible, tidak ada migration destructive).
